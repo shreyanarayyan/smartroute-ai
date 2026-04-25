@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,35 +10,48 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 214 45% 97%;
+    --foreground: 218 34% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 218 34% 14%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 211 92% 44%;
     --primary-foreground: 210 40% 98%;
+    --primary-glow: 201 96% 58%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 214 38% 92%;
+    --secondary-foreground: 218 34% 18%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 214 38% 92%;
+    --muted-foreground: 217 13% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 162 76% 42%;
+    --accent-foreground: 180 22% 96%;
+    --warning: 38 92% 54%;
+    --warning-foreground: 34 70% 14%;
+    --success: 162 76% 42%;
+    --success-foreground: 180 22% 96%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 214 28% 86%;
+    --input: 214 28% 86%;
+    --ring: 211 92% 44%;
 
-    --radius: 0.5rem;
+    --radius: 0.875rem;
+
+    --gradient-command: linear-gradient(135deg, hsl(218 42% 16%), hsl(211 92% 32%));
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-map: radial-gradient(circle at 20% 20%, hsl(var(--primary-glow) / 0.26), transparent 32%), linear-gradient(135deg, hsl(213 47% 96%), hsl(210 39% 91%));
+    --shadow-soft: 0 16px 45px -28px hsl(218 34% 14% / 0.35);
+    --shadow-command: 0 24px 70px -35px hsl(211 92% 32% / 0.48);
+    --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
 
     --sidebar-background: 0 0% 98%;
 
@@ -100,6 +115,23 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body);
+    letter-spacing: 0;
   }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: 0;
+  }
+}
+
+@layer utilities {
+  .bg-gradient-command { background-image: var(--gradient-command); }
+  .bg-gradient-primary { background-image: var(--gradient-primary); }
+  .bg-gradient-map { background-image: var(--gradient-map); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .shadow-command { box-shadow: var(--shadow-command); }
 }
