@@ -1,231 +1,314 @@
 import { useMemo, useState } from "react";
+import {
+  Activity,
+  BarChart3,
+  Clock3,
+  Fuel,
+  LayoutDashboard,
+  MapPin,
+  Navigation,
+  PackageCheck,
+  Plus,
+  Route,
+  Sparkles,
+  TimerReset,
+  Truck,
+  Zap,
+} from "lucide-react";
+import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const firstStops = ["88 Harbor Way, Brooklyn", "12 Market Street, Queens", "440 Hudson Ave, Manhattan"];
+const baseStops = ["88 Harbor Way, Brooklyn", "12 Market Street, Queens", "440 Hudson Ave, Manhattan"];
 
-const chartData = [42, 58, 51, 76, 69, 48];
+const deliveryData = [
+  { day: "Mon", deliveries: 42, saved: 7 },
+  { day: "Tue", deliveries: 58, saved: 10 },
+  { day: "Wed", deliveries: 51, saved: 9 },
+  { day: "Thu", deliveries: 76, saved: 14 },
+  { day: "Fri", deliveries: 69, saved: 12 },
+  { day: "Sat", deliveries: 48, saved: 8 },
+];
 
-function Index() {
+const navItems = [
+  { label: "Dashboard", icon: LayoutDashboard },
+  { label: "Routes", icon: Route },
+  { label: "Fleet", icon: Truck },
+  { label: "Analytics", icon: BarChart3 },
+];
+
+const Index = () => {
   const [pickup, setPickup] = useState("125 Distribution Drive, Newark");
-  const [stops, setStops] = useState(firstStops);
+  const [stops, setStops] = useState(baseStops);
   const [priority, setPriority] = useState("balanced");
   const [vehicle, setVehicle] = useState("van");
   const [optimized, setOptimized] = useState(false);
 
-  const result = useMemo(() => {
-    const filledStops = stops.filter((stop) => stop.trim() !== "");
-    const priorityRate = priority === "urgent" ? 1.1 : priority === "eco" ? 0.9 : 1;
-    const vehicleRate = vehicle === "bike" ? 0.75 : vehicle === "truck" ? 1.2 : 1;
-    const distance = Math.max(8, filledStops.length * 7.5 * priorityRate * vehicleRate);
-    const time = Math.round(distance * (vehicle === "bike" ? 5 : vehicle === "truck" ? 3.7 : 3.2));
-    const bestOrder = optimized ? [...filledStops].sort((a, b) => a.length - b.length) : filledStops;
+  const route = useMemo(() => {
+    const priorityBoost = priority === "urgent" ? 1.08 : priority === "eco" ? 0.89 : 1;
+    const vehicleFactor = vehicle === "bike" ? 0.72 : vehicle === "truck" ? 1.18 : 1;
+    const activeStops = stops.filter(Boolean);
+    const distance = Math.max(8, activeStops.length * 7.6 * priorityBoost * vehicleFactor);
+    const time = Math.round(distance * (vehicle === "bike" ? 4.8 : vehicle === "truck" ? 3.6 : 3.1));
+    const orderedStops = [...activeStops].sort((a, b) => (optimized ? a.length - b.length : 0));
 
     return {
-      bestOrder,
+      orderedStops,
       distance: distance.toFixed(1),
       time,
-      fuelSaved: Math.round(filledStops.length * 2 + (optimized ? 8 : 3)),
-      efficiency: Math.min(98, 72 + filledStops.length * 4 + (optimized ? 12 : 0)),
+      fuelSaved: Math.round(activeStops.length * 1.8 + (optimized ? 8 : 3)),
+      efficiency: Math.min(98, Math.round(72 + activeStops.length * 4 + (optimized ? 12 : 0))),
     };
   }, [stops, priority, vehicle, optimized]);
 
-  function addStop() {
-    setStops([...stops, ""]);
-  }
-
-  function updateStop(index: number, newValue: string) {
-    const updatedStops = [...stops];
-    updatedStops[index] = newValue;
-    setStops(updatedStops);
-    setOptimized(false);
-  }
+  const addStop = () => setStops((current) => [...current, ""]);
+  const updateStop = (index: number, value: string) =>
+    setStops((current) => current.map((stop, stopIndex) => (stopIndex === index ? value : stop)));
 
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="flex min-h-screen">
-        <aside className="hidden w-64 bg-gradient-command p-6 text-primary-foreground lg:block">
-          <div className="mb-10">
-            <div className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-primary-foreground/15 text-2xl">🚚</div>
-            <h2 className="font-display text-2xl font-bold">SmartRoute AI</h2>
-            <p className="text-sm text-primary-foreground/70">Logistics dashboard</p>
+        <aside className="hidden w-72 shrink-0 bg-gradient-command p-6 text-primary-foreground shadow-command lg:flex lg:flex-col">
+          <div className="mb-10 flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-primary-foreground/15">
+              <Navigation className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-display text-xl font-bold">SmartRoute AI</p>
+              <p className="text-sm text-primary-foreground/70">Logistics command</p>
+            </div>
           </div>
-
           <nav className="space-y-2">
-            {['Dashboard', 'Routes', 'Fleet', 'Analytics'].map((item, index) => (
+            {navItems.map((item, index) => (
               <button
-                key={item}
-                className={`w-full rounded-xl px-4 py-3 text-left font-semibold transition hover:bg-primary-foreground/15 ${
-                  index === 0 ? 'bg-primary-foreground/15' : 'text-primary-foreground/75'
+                key={item.label}
+                className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm font-semibold transition hover:bg-primary-foreground/12 ${
+                  index === 0 ? "bg-primary-foreground/16" : "text-primary-foreground/76"
                 }`}
               >
-                {item}
+                <item.icon className="h-5 w-5" />
+                {item.label}
               </button>
             ))}
           </nav>
-
-          <div className="mt-10 rounded-xl border border-primary-foreground/15 bg-primary-foreground/10 p-4">
-            <p className="font-semibold">✨ AI dispatcher online</p>
-            <p className="mt-2 text-sm text-primary-foreground/70">Route scoring and delivery sequencing are ready.</p>
+          <div className="mt-auto rounded-xl border border-primary-foreground/14 bg-primary-foreground/10 p-4">
+            <Sparkles className="mb-3 h-5 w-5" />
+            <p className="text-sm font-semibold">AI dispatcher online</p>
+            <p className="mt-1 text-xs leading-5 text-primary-foreground/70">Live route scoring, ETA clustering, and fuel-aware sequencing.</p>
           </div>
         </aside>
 
-        <section className="flex-1">
-          <header className="border-b bg-card px-5 py-6 md:px-8">
+        <section className="flex-1 overflow-hidden">
+          <header className="border-b bg-card/80 px-4 py-4 backdrop-blur md:px-8">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h1 className="font-display text-4xl font-bold md:text-5xl">SmartRoute AI</h1>
-                <p className="mt-2 max-w-2xl text-muted-foreground">Optimize delivery routes between multiple locations using a simple AI-powered logistics workflow.</p>
+                <h1 className="text-3xl font-bold tracking-normal md:text-5xl">SmartRoute AI</h1>
+                <p className="mt-2 max-w-2xl text-muted-foreground">Optimize multi-stop delivery routes with AI-assisted sequencing, distance estimates, and logistics performance insights.</p>
               </div>
-              <button onClick={() => setOptimized(true)} className="rounded-xl bg-gradient-primary px-6 py-3 font-bold text-primary-foreground shadow-command transition hover:-translate-y-0.5">
-                Optimize Now
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="panel"><PackageCheck /> Import Stops</Button>
+                <Button variant="command" onClick={() => setOptimized(true)}><Zap /> Optimize Now</Button>
+              </div>
             </div>
           </header>
 
-          <div className="space-y-6 p-5 md:p-8">
+          <div className="space-y-6 p-4 md:p-8">
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl bg-card p-5 shadow-soft">
-                <p className="text-sm text-muted-foreground">Total Deliveries</p>
-                <p className="mt-2 font-display text-3xl font-bold">{result.bestOrder.length}</p>
-                <p className="mt-3 text-sm font-semibold text-success">Active stops</p>
-              </div>
-              <div className="rounded-2xl bg-card p-5 shadow-soft">
-                <p className="text-sm text-muted-foreground">Estimated Distance</p>
-                <p className="mt-2 font-display text-3xl font-bold">{result.distance} mi</p>
-                <p className="mt-3 text-sm font-semibold text-success">AI calculated</p>
-              </div>
-              <div className="rounded-2xl bg-card p-5 shadow-soft">
-                <p className="text-sm text-muted-foreground">Estimated Time</p>
-                <p className="mt-2 font-display text-3xl font-bold">{result.time} min</p>
-                <p className="mt-3 text-sm font-semibold text-success">Current ETA</p>
-              </div>
-              <div className="rounded-2xl bg-card p-5 shadow-soft">
-                <p className="text-sm text-muted-foreground">Fuel Saved</p>
-                <p className="mt-2 font-display text-3xl font-bold">{result.fuelSaved}%</p>
-                <p className="mt-3 text-sm font-semibold text-success">Projected saving</p>
-              </div>
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-2xl bg-card p-6 shadow-soft">
-                <h2 className="mb-5 font-display text-2xl font-bold">Delivery Route Input</h2>
-
-                <label className="block text-sm font-semibold">Pickup location</label>
-                <input value={pickup} onChange={(event) => setPickup(event.target.value)} className="mt-2 w-full rounded-xl border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring" />
-
-                <div className="mt-5 space-y-3">
-                  <p className="text-sm font-semibold">Delivery stops</p>
-                  {stops.map((stop, index) => (
-                    <div key={index} className="flex gap-3">
-                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary font-bold text-primary-foreground">{index + 1}</span>
-                      <input value={stop} onChange={(event) => updateStop(index, event.target.value)} placeholder="Enter delivery address" className="w-full rounded-xl border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring" />
-                    </div>
-                  ))}
-                </div>
-
-                <button onClick={addStop} className="mt-4 rounded-xl border bg-card px-4 py-3 font-semibold shadow-soft transition hover:bg-secondary">
-                  + Add delivery stop
-                </button>
-
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-sm font-semibold">Delivery priority</label>
-                    <select value={priority} onChange={(event) => setPriority(event.target.value)} className="mt-2 w-full rounded-xl border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring">
-                      <option value="balanced">Balanced</option>
-                      <option value="urgent">Urgent first</option>
-                      <option value="eco">Fuel efficient</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold">Vehicle type</label>
-                    <select value={vehicle} onChange={(event) => setVehicle(event.target.value)} className="mt-2 w-full rounded-xl border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring">
-                      <option value="van">Delivery van</option>
-                      <option value="truck">Box truck</option>
-                      <option value="bike">Cargo bike</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button onClick={() => setOptimized(true)} className="mt-6 w-full rounded-xl bg-gradient-primary px-5 py-4 font-bold text-primary-foreground shadow-command transition hover:-translate-y-0.5">
-                  ✨ Optimize Route
-                </button>
-              </div>
-
-              <div className="rounded-2xl bg-card p-6 shadow-soft">
-                <h2 className="mb-5 font-display text-2xl font-bold">Route Visualization</h2>
-                <div className="relative min-h-[390px] overflow-hidden rounded-2xl bg-gradient-map p-5">
-                  <div className="absolute left-[12%] right-[12%] top-1/2 h-2 -translate-y-1/2 rotate-[-16deg] rounded-full bg-primary/30"></div>
-                  <div className="absolute left-[18%] top-[22%] h-28 w-2 rotate-[38deg] rounded-full bg-accent/50"></div>
-
-                  {result.bestOrder.map((stop, index) => (
-                    <div key={index} className="absolute grid h-11 w-11 place-items-center rounded-full bg-primary font-bold text-primary-foreground shadow-command animate-route-pulse" style={{ left: `${18 + index * 20}%`, top: `${24 + (index % 2) * 34}%` }}>
-                      {index + 1}
-                    </div>
-                  ))}
-
-                  <div className="absolute bottom-5 left-5 right-5 rounded-2xl border bg-card/90 p-4 shadow-soft backdrop-blur">
-                    <p className="font-bold">Interactive route panel</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Pickup from {pickup || "origin"}, then complete {result.bestOrder.length} optimized stops.</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-2xl bg-card p-6 shadow-soft">
-                <h2 className="mb-5 font-display text-2xl font-bold">Optimization Results</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-secondary p-4"><p className="text-sm text-muted-foreground">Distance</p><p className="text-2xl font-bold">{result.distance} mi</p></div>
-                  <div className="rounded-xl bg-secondary p-4"><p className="text-sm text-muted-foreground">Travel time</p><p className="text-2xl font-bold">{result.time} min</p></div>
-                  <div className="rounded-xl bg-secondary p-4"><p className="text-sm text-muted-foreground">Stops</p><p className="text-2xl font-bold">{result.bestOrder.length}</p></div>
-                  <div className="rounded-xl bg-secondary p-4"><p className="text-sm text-muted-foreground">Efficiency</p><p className="text-2xl font-bold">{result.efficiency}%</p></div>
-                </div>
-
-                <div className="mt-5 space-y-3">
-                  {result.bestOrder.map((stop, index) => (
-                    <div key={index} className="flex gap-3 rounded-xl border bg-card p-4">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent font-bold text-accent-foreground">{index + 1}</span>
+              {[
+                ["Total Deliveries", stops.filter(Boolean).length.toString(), PackageCheck, "Active stops"],
+                ["Estimated Distance", `${route.distance} mi`, Navigation, "AI calculated"],
+                ["Estimated Time", `${route.time} min`, Clock3, "Current ETA"],
+                ["Fuel Saved", `${route.fuelSaved}%`, Fuel, "Projected reduction"],
+              ].map(([label, value, Icon, meta]) => (
+                <Card key={label as string} className="animate-slide-up rounded-xl border-border bg-card shadow-soft">
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-bold">{stop}</p>
-                        <p className="text-sm text-muted-foreground">ETA window optimized for route density</p>
+                        <p className="text-sm text-muted-foreground">{label as string}</p>
+                        <p className="mt-2 font-display text-3xl font-bold">{value as string}</p>
+                      </div>
+                      <div className="grid h-12 w-12 place-items-center rounded-lg bg-secondary text-primary">
+                        <Icon className="h-6 w-6" />
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <p className="mt-4 text-xs font-semibold text-success">{meta as string}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </section>
 
-              <div className="space-y-6">
-                <div className="rounded-2xl bg-card p-6 shadow-soft">
-                  <h2 className="mb-4 font-display text-2xl font-bold">AI Insights</h2>
-                  <p className="rounded-xl bg-secondary p-4">AI grouped nearby stops, reduced backtracking, and balanced travel time with fuel efficiency.</p>
-                  <ul className="mt-4 space-y-3 text-muted-foreground">
-                    <li>✅ Start with dense delivery zones before traffic peaks.</li>
-                    <li>✅ Use fuel efficient priority for lower idle time.</li>
-                    <li>✅ Re-optimize when urgent deliveries arrive.</li>
-                  </ul>
-                </div>
+            <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+              <Card className="rounded-xl shadow-soft">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Route className="text-primary" /> Delivery Route Input</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="space-y-2">
+                    <Label>Pickup location</Label>
+                    <Input value={pickup} onChange={(event) => setPickup(event.target.value)} />
+                  </div>
+                  <div className="space-y-3">
+                    <Label>Delivery stops</Label>
+                    {stops.map((stop, index) => (
+                      <div key={index} className="flex items-center gap-3">
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">{index + 1}</div>
+                        <Input value={stop} onChange={(event) => updateStop(index, event.target.value)} placeholder="Enter delivery address" />
+                      </div>
+                    ))}
+                    <Button variant="panel" onClick={addStop}><Plus /> Add delivery stop</Button>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Delivery priority</Label>
+                      <Select value={priority} onValueChange={setPriority}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="balanced">Balanced</SelectItem>
+                          <SelectItem value="urgent">Urgent first</SelectItem>
+                          <SelectItem value="eco">Fuel efficient</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Vehicle type</Label>
+                      <Select value={vehicle} onValueChange={setVehicle}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="van">Delivery van</SelectItem>
+                          <SelectItem value="truck">Box truck</SelectItem>
+                          <SelectItem value="bike">Cargo bike</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button className="w-full" variant="command" size="lg" onClick={() => setOptimized(true)}><Sparkles /> Optimize Route</Button>
+                </CardContent>
+              </Card>
 
-                <div className="rounded-2xl bg-card p-6 shadow-soft">
-                  <h2 className="mb-5 font-display text-2xl font-bold">Analytics</h2>
-                  <div className="flex h-44 items-end gap-3">
-                    {chartData.map((value, index) => (
-                      <div key={index} className="flex flex-1 flex-col items-center gap-2">
-                        <div className="w-full rounded-t-xl bg-primary" style={{ height: `${value * 1.8}px` }}></div>
-                        <span className="text-xs text-muted-foreground">{['M', 'T', 'W', 'T', 'F', 'S'][index]}</span>
+              <Card className="overflow-hidden rounded-xl shadow-soft">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><MapPin className="text-primary" /> Route Visualization</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="relative min-h-[370px] overflow-hidden rounded-xl bg-gradient-map p-5">
+                    <div className="absolute inset-x-10 top-1/2 h-1 -translate-y-1/2 rotate-[-16deg] rounded-full bg-primary/35" />
+                    <div className="absolute left-[18%] top-[22%] h-24 w-1 rotate-[42deg] rounded-full bg-accent/50" />
+                    {route.orderedStops.map((stop, index) => (
+                      <div
+                        key={`${stop}-${index}`}
+                        className="absolute grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-command animate-route-pulse"
+                        style={{ left: `${18 + index * 20}%`, top: `${24 + (index % 2) * 34}%`, animationDelay: `${index * 180}ms` }}
+                      >
+                        {index + 1}
+                      </div>
+                    ))}
+                    <div className="absolute bottom-5 left-5 right-5 rounded-xl border bg-card/90 p-4 shadow-soft backdrop-blur">
+                      <p className="font-semibold">Interactive route panel</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Pickup from {pickup || "origin"}, then complete {route.orderedStops.length} stops using the shortest available sequence.</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+              <Card className="rounded-xl shadow-soft">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Activity className="text-primary" /> Optimization Results</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      ["Distance", `${route.distance} mi`],
+                      ["Travel time", `${route.time} min`],
+                      ["Stops", route.orderedStops.length],
+                      ["Efficiency", `${route.efficiency}%`],
+                    ].map(([label, value]) => (
+                      <div key={label as string} className="rounded-lg bg-secondary p-4">
+                        <p className="text-xs text-muted-foreground">{label as string}</p>
+                        <p className="mt-1 text-xl font-bold">{value}</p>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-5 rounded-xl bg-gradient-command p-4 text-primary-foreground">
-                    <p className="text-sm text-primary-foreground/70">Fuel consumption estimate</p>
-                    <p className="font-display text-3xl font-bold">{Math.max(1.4, Number(result.distance) / 12).toFixed(1)} gal</p>
+                  <div className="space-y-3">
+                    {route.orderedStops.map((stop, index) => (
+                      <div key={`${stop}-sequence`} className="flex gap-3 rounded-lg border bg-card p-3">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground text-sm font-bold">{index + 1}</span>
+                        <div>
+                          <p className="font-semibold">{stop || "Unassigned delivery stop"}</p>
+                          <p className="text-sm text-muted-foreground">ETA window optimized for traffic and route density</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Card className="rounded-xl shadow-soft">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Sparkles className="text-primary" /> AI Insights</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 text-sm text-muted-foreground">
+                    <p className="rounded-lg bg-secondary p-4 text-foreground">AI prioritized clustered stops first, reduced cross-city backtracking, and balanced ETA risk against vehicle efficiency.</p>
+                    <div className="flex gap-3"><TimerReset className="h-5 w-5 shrink-0 text-success" /> Start with dense zones before peak congestion.</div>
+                    <div className="flex gap-3"><Fuel className="h-5 w-5 shrink-0 text-success" /> Use eco priority for lower idle time and fuel burn.</div>
+                    <div className="flex gap-3"><Zap className="h-5 w-5 shrink-0 text-warning" /> Re-optimize when new urgent deliveries arrive.</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-xl shadow-soft">
+                  <CardHeader>
+                    <CardTitle>Daily Deliveries</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={deliveryData}>
+                        <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                        <YAxis hide />
+                        <Tooltip cursor={{ fill: "hsl(var(--secondary))" }} />
+                        <Bar dataKey="deliveries" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
               </div>
+            </section>
+
+            <section className="grid gap-6 lg:grid-cols-3">
+              <Card className="rounded-xl shadow-soft lg:col-span-2">
+                <CardHeader><CardTitle>Time Saved Analytics</CardTitle></CardHeader>
+                <CardContent className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={deliveryData}>
+                      <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                      <YAxis hide />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="saved" stroke="hsl(var(--accent))" fill="hsl(var(--accent) / 0.22)" strokeWidth={3} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+              <Card className="rounded-xl bg-gradient-command text-primary-foreground shadow-command">
+                <CardHeader><CardTitle>Fuel Consumption Estimate</CardTitle></CardHeader>
+                <CardContent>
+                  <p className="font-display text-5xl font-bold">{Math.max(1.4, Number(route.distance) / 12).toFixed(1)} gal</p>
+                  <p className="mt-4 text-primary-foreground/76">Projected for current vehicle, route density, and stop count.</p>
+                  <div className="mt-8 rounded-lg bg-primary-foreground/12 p-4">
+                    <p className="text-sm font-semibold">Route summary</p>
+                    <p className="mt-1 text-sm text-primary-foreground/72">{route.efficiency}% efficient with {route.fuelSaved}% fuel savings.</p>
+                  </div>
+                </CardContent>
+              </Card>
             </section>
           </div>
         </section>
       </div>
     </main>
   );
-}
+};
 
 export default Index;
