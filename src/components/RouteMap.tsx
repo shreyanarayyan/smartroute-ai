@@ -1,8 +1,6 @@
-import { useEffect } from "react";
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "leaflet-polylinedecorator";
 
 type RoutePoint = {
   label: string;
@@ -45,71 +43,34 @@ const createCustomIcon = (isPickup: boolean, label: string) => {
   });
 };
 
-const PolylineDecorator = ({ positions }: { positions: [number, number][] }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!map || positions.length < 2) return;
-
-    const decorators: L.PolylineDecorator[] = [];
-
-    // Create a decorator for each segment to place arrows at 25%, 50%, and 75% of each segment
-    for (let i = 0; i < positions.length - 1; i++) {
-      const segment = [positions[i], positions[i + 1]];
-      const decorator = (L as any).polylineDecorator(segment, {
-        patterns: [25, 50, 75].map((offset) => ({
-          offset: `${offset}%`,
-          repeat: 0,
-          symbol: (L as any).Symbol.arrowHead({
-            pixelSize: 15,
-            polygon: true,
-            pathOptions: {
-              stroke: true,
-              color: "#ffffff", // White outline
-              weight: 1.5,
-              fillOpacity: 1,
-              fillColor: "#1a1a2e", // Dark navy fill
-            },
-          }),
-        })),
-      });
-      decorator.addTo(map);
-      decorators.push(decorator);
-    }
-
-    return () => {
-      decorators.forEach((d) => map.removeLayer(d));
-    };
-  }, [map, positions]);
-
-  return null;
-};
-
 const RouteMap = ({ points, currentLocation }: RouteMapProps) => {
-  const mapCenter = currentLocation || (points.length > 0 ? { lat: points[0].lat, lng: points[0].lng } : { lat: 37.7749, lng: -122.4194 });
-  const polylinePositions = points.map((point) => [point.lat, point.lng] as [number, number]);
+  const mapCenter: [number, number] = currentLocation 
+    ? [currentLocation.lat, currentLocation.lng] 
+    : points.length > 0 
+      ? [points[0].lat, points[0].lng] 
+      : [37.7749, -122.4194];
 
   return (
     <div className="rounded-3xl border border-border bg-card/90 p-4 shadow-soft">
+      {/* @ts-ignore - react-leaflet v4 type definitions issue */}
       <MapContainer
-        center={[mapCenter.lat, mapCenter.lng]}
+        center={mapCenter}
         zoom={13}
         scrollWheelZoom={false}
         className="h-[420px] w-full rounded-3xl"
-        key={`${mapCenter.lat}-${mapCenter.lng}`}
+        key={`${mapCenter[0]}-${mapCenter[1]}`}
+        style={{ height: "420px" }}
       >
+        {/* @ts-ignore - react-leaflet v4 type definitions issue */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="&copy; OpenStreetMap contributors"
         />
         {points.length > 1 && (
-          <>
-            <Polyline
-              positions={polylinePositions}
-              pathOptions={{ color: "#38bdf8", weight: 5, opacity: 0.85 }}
-            />
-            <PolylineDecorator positions={polylinePositions} />
-          </>
+          <Polyline
+            positions={points.map((point) => [point.lat, point.lng] as [number, number])}
+            pathOptions={{ color: "#38bdf8", weight: 5, opacity: 0.85 }}
+          />
         )}
         {points.map((point, index) => {
           const isPickup = index === 0;
@@ -117,7 +78,12 @@ const RouteMap = ({ points, currentLocation }: RouteMapProps) => {
           const icon = createCustomIcon(isPickup, displayLabel);
 
           return (
-            <Marker key={`${point.address}-${index}`} position={[point.lat, point.lng]} icon={icon}>
+            // @ts-ignore - react-leaflet v4 type definitions issue
+            <Marker 
+              key={`${point.address}-${index}`} 
+              position={[point.lat, point.lng]} 
+              icon={icon}
+            >
               <Popup>
                 <div className="text-sm">
                   <strong>{point.label}</strong>

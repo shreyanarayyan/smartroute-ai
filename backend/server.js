@@ -4,16 +4,25 @@
 import express from "express";
 import cors from "cors";
 import optimizeRoute from "./routes/optimize.js";
+import routesApi from "./routes/routes.js";
+import fleetApi from "./routes/fleet.js";
+import nearbyApi from "./routes/nearby.js";
+import historyApi from "./routes/history.js";
+import analyticsApi from "./routes/analytics.js";
 
 const app = express();
 const PORT = 3001;
 
 // ── Middleware ──────────────────────────────────────────────
-app.use(cors({ origin: "http://localhost:8080" }));
+app.use(cors({ origin: ["http://localhost:8080", "http://localhost:8081", "http://localhost:8082"] }));
 app.use(express.json());
 
 // ── Routes ─────────────────────────────────────────────────
-// All requests to /api/optimize-route are handled by optimize.js
+app.use("/api/routes", routesApi);
+app.use("/api/fleet", fleetApi);
+app.use("/api/nearby", nearbyApi);
+app.use("/api/history", historyApi);
+app.use("/api/analytics", analyticsApi);
 app.use('/api', optimizeRoute);
 
 // ── Health check ───────────────────────────────────────────
