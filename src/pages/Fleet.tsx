@@ -40,7 +40,7 @@ const Fleet = () => {
   const totalVehicles = vehicles.length;
   const availableVehicles = vehicles.filter(v => v.status === 'available').length;
   const activeDeliveries = vehicles.filter(v => v.status === 'in-use').length;
-  const averageMPG = vehicles.length ? vehicles.reduce((sum, v) => sum + v.mpg, 0) / vehicles.length : 0;
+  const averageKPL = vehicles.length ? vehicles.reduce((sum, v) => sum + (v.mpg || 0), 0) / vehicles.length : 0;
   const assignedDrivers = vehicles.filter(v => v.driver).length;
 
   return (
@@ -104,8 +104,8 @@ const Fleet = () => {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Avg MPG</p>
-                <p className="mt-2 text-3xl font-bold">{averageMPG.toFixed(1)}</p>
+                <p className="text-sm text-muted-foreground">Avg km/L</p>
+                <p className="mt-2 text-3xl font-bold">{averageKPL.toFixed(1)}</p>
               </div>
               <div className="grid h-12 w-12 place-items-center rounded-lg bg-orange-100 text-orange-600">
                 <Fuel className="h-6 w-6" />

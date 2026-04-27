@@ -18,7 +18,7 @@ export type OptimizedRoute = {
   pickup: RoutePoint;
   orderedStops: RoutePoint[];
   mapPoints: RoutePoint[];
-  totalDistanceMiles: number;
+  totalDistanceKm: number;
   travelTimeMinutes: number;
   fuelGallons: number;
   fuelCost: number;
@@ -48,7 +48,7 @@ export type NearbyStop = {
   address: string;
   lat: number;
   lng: number;
-  distanceMiles: number;
+  distanceKm: number;
 };
 
 export type HistoryRecord = {

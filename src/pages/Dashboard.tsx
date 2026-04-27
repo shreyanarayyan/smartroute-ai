@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Clock3,
+  Download,
   Fuel,
+  Loader2,
   MapPin,
   Navigation,
   PackageCheck,
   Plus,
   Route,
+  Search,
   Sparkles,
   TimerReset,
   Trash2,
@@ -17,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import RouteMap from "@/components/RouteMap";
 import { OptimizedRoute, RoutePoint, Stop } from "@/lib/routeTypes";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
@@ -81,6 +85,75 @@ const Dashboard = () => {
   } = useRoute();
 
   const [loading, setLoading] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [locationSearch, setLocationSearch] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState<{ display_name: string; lat: string; lon: string }[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  const isDuplicate = (address: string, excludeIndex?: number) =>
+    routeState.stops.some(
+      (s, i) => i !== excludeIndex && s.address.trim() !== "" && s.address.toLowerCase() === address.toLowerCase(),
+    );
+
+  const warnDuplicate = () => {
+    setDuplicateWarning("This location is already added!");
+    setTimeout(() => setDuplicateWarning(null), 2000);
+  };
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLocationSearchChange = (value: string) => {
+    setLocationSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (value.length < 3) {
+      setLocationSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&limit=5&countrycodes=in`
+        );
+        const data = await res.json();
+        setLocationSuggestions(data);
+        setShowSuggestions(true);
+      } catch {
+        setLocationSuggestions([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 500);
+  };
+
+  const handleSelectSuggestion = (suggestion: { display_name: string; lat: string; lon: string }) => {
+    if (isDuplicate(suggestion.display_name)) {
+      warnDuplicate();
+      setLocationSearch("");
+      setLocationSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const newStop = createStop(suggestion.display_name, parseFloat(suggestion.lat), parseFloat(suggestion.lon));
+    updateStops([...routeState.stops, newStop]);
+    setLocationSearch("");
+    setLocationSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   useEffect(() => {
     updateRouteResult(null);
@@ -149,9 +222,9 @@ const Dashboard = () => {
 
   const displayRoute = routeState.routeResult ?? fallbackRoute;
 
-  const updateStop = (index: number, address: string) =>
+  const updateStop = (index: number, address: string, lat?: number | null, lng?: number | null) =>
     updateStops(routeState.stops.map((stop, stopIndex) =>
-      stopIndex === index ? { ...stop, address, lat: null, lng: null } : stop,
+      stopIndex === index ? { ...stop, address, lat: lat ?? null, lng: lng ?? null } : stop,
     ));
 
   const addStop = () => updateStops([...routeState.stops, createStop("")]);
@@ -174,7 +247,7 @@ const Dashboard = () => {
       return;
     }
 
-    updateStatusMessage("Requesting your current location…");
+    setDetectingLocation(true);
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -182,37 +255,38 @@ const Dashboard = () => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
 
-          console.log("Location obtained:", { lat, lng });
+          // Immediately set coordinates so green S marker drops right away
+          updatePickup({ id: "current-location", address: "Detecting address…", lat, lng });
 
-          const resolvedAddress = await reverseGeocode(lat, lng);
-          console.log("Address resolved:", resolvedAddress);
+          // Smart reverse geocode with address priority
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`
+          );
+          const data = await res.json();
+          const a = data?.address ?? {};
+          const smartName =
+            (a.road && (a.suburb || a.city))
+              ? [a.road, a.suburb, a.city].filter(Boolean).join(", ")
+              : (a.town || a.city)
+              ? [a.town ?? a.city, a.state].filter(Boolean).join(", ")
+              : data?.display_name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+          updatePickup({ id: "current-location", address: smartName, lat, lng });
 
           const rawNearby = generateNearbyStops({ lat, lng });
-          console.log("Raw nearby stops:", rawNearby);
-
           const resolvedNearby = await resolveNearbyStops(rawNearby);
-          console.log("Resolved nearby stops:", resolvedNearby);
-
-          updatePickup({
-            id: "current-location",
-            address: resolvedAddress,
-            lat,
-            lng,
-          });
-
           updateNearbyStops(resolvedNearby);
-          updateStatusMessage(`Current location loaded: ${resolvedAddress}`);
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : "Unknown error";
-          console.error("Error in geolocation:", errorMsg);
-          updateStatusMessage(`Error loading location: ${errorMsg}`);
+        } catch {
+          updateStatusMessage("Error resolving address. Coordinates set — type to refine.");
+        } finally {
+          setDetectingLocation(false);
         }
       },
-      (error) => {
-        console.error("Geolocation error:", error);
-        updateStatusMessage(`Unable to access location: ${error.message}`);
+      () => {
+        updateStatusMessage("Location access denied. Please type manually");
+        setDetectingLocation(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   };
 
@@ -252,12 +326,41 @@ const Dashboard = () => {
 
       const result = await response.json();
       updateRouteResult(result as OptimizedRoute);
+
+      // Reorder the stops input list to match the optimized sequence returned by backend
+      if (result.orderedStops && Array.isArray(result.orderedStops)) {
+        const reordered = result.orderedStops.map((optimizedStop: { address: string; lat: number; lng: number }) => {
+          // Find matching stop in current state to preserve id
+          const match = routeState.stops.find(
+            (s) => s.address.toLowerCase() === optimizedStop.address.toLowerCase()
+          );
+          return match
+            ? { ...match, lat: optimizedStop.lat, lng: optimizedStop.lng }
+            : { id: `opt-${Math.random().toString(36).slice(2)}`, address: optimizedStop.address, lat: optimizedStop.lat, lng: optimizedStop.lng };
+        });
+        updateStops(reordered);
+      }
+
       updateStatusMessage("Route optimized successfully with ML predictions.");
     } catch (error) {
       updateStatusMessage(`Unable to optimize route: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExport = () => {
+    const routeName = `Route_${activeStops.length}_stops`;
+    const content = JSON.stringify(displayRoute, null, 2);
+    const blob = new Blob([content], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${routeName}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -269,33 +372,57 @@ const Dashboard = () => {
           <p className="mt-2 text-muted-foreground">Optimize multi-stop delivery routes with AI-assisted sequencing, distance estimates, and logistics performance insights.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="panel" onClick={importStops}><PackageCheck /> Import Stops</Button>
+          <Button variant="secondary" onClick={handleExport}><Download className="mr-2 h-4 w-4" /> Export Route</Button>
           <Button variant="command" onClick={optimizeRoute} disabled={loading}><Zap /> Optimize Now</Button>
         </div>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Total Deliveries", activeStops.length.toString(), PackageCheck, "Active stops"],
-          ["Estimated Distance", activeStops.length === 0 ? "0 km" : `${displayRoute.totalDistanceKm} km`, Navigation, "AI calculated"],
-          ["Estimated Time", activeStops.length === 0 ? "0 min" : `${displayRoute.travelTimeMinutes} min`, Clock3, "Current ETA"],
-          ["Route Cost", activeStops.length === 0 ? "₹0.00" : `₹${displayRoute.routeCost.toFixed(2)}`, Fuel, "Projected expense"],
-        ].map(([label, value, Icon, meta]) => (
-          <Card key={label as string} className="animate-slide-up rounded-xl border-border bg-card shadow-soft">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{label as string}</p>
-                  <p className="mt-2 font-display text-3xl font-bold">{value as string}</p>
-                </div>
-                <div className="grid h-12 w-12 place-items-center rounded-lg bg-secondary text-primary">
-                  <Icon className="h-6 w-6" />
-                </div>
+      {/* ── Manual Location Search ───────────────────────────── */}
+      <section>
+        <Card className="rounded-xl shadow-soft">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5 text-primary" /> Search & Add Delivery Location
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div ref={searchContainerRef} className="relative">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  className="pl-9 pr-4"
+                  placeholder="Search and add delivery location manually..."
+                  value={locationSearch}
+                  onChange={(e) => handleLocationSearchChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && locationSuggestions.length > 0) {
+                      handleSelectSuggestion(locationSuggestions[0]);
+                    }
+                    if (e.key === "Escape") setShowSuggestions(false);
+                  }}
+                  onFocus={() => locationSuggestions.length > 0 && setShowSuggestions(true)}
+                />
+                {searchLoading && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground animate-pulse">Searching…</span>
+                )}
               </div>
-              <p className="mt-4 text-xs font-semibold text-success">{meta as string}</p>
-            </CardContent>
-          </Card>
-        ))}
+              {showSuggestions && locationSuggestions.length > 0 && (
+                <ul className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+                  {locationSuggestions.map((s, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 px-4 py-3 cursor-pointer hover:bg-secondary transition-colors border-b border-border/50 last:border-0"
+                      onMouseDown={() => handleSelectSuggestion(s)}
+                    >
+                      <span className="mt-0.5 shrink-0 text-base">📍</span>
+                      <span className="text-sm leading-snug">{s.display_name}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -311,20 +438,41 @@ const Dashboard = () => {
                 onChange={(address, lat, lng) => updatePickup({ ...routeState.pickup, address, lat, lng })}
                 placeholder="Enter pickup location"
               />
-              <Button variant="panel" onClick={handleUseCurrentLocation}><MapPin /> Use My Current Location</Button>
+              <Button variant="panel" onClick={handleUseCurrentLocation} disabled={detectingLocation}>
+                {detectingLocation
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Detecting...</>
+                  : <><MapPin /> Use My Current Location</>}
+              </Button>
             </div>
-            <div className="space-y-3">
-              <Label>Delivery stops</Label>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <Label className="block">Delivery stops</Label>
+                {duplicateWarning && (
+                  <span className="text-xs font-medium text-destructive">
+                    ⚠ {duplicateWarning}
+                  </span>
+                )}
+              </div>
               {routeState.stops.map((stop, index) => (
-                <div key={stop.id} className="flex flex-wrap items-center gap-3">
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">{index + 1}</div>
-                  <LocationAutocomplete
-                    value={stop.address}
-                    onChange={(address, lat, lng) => updateStop(index, address)}
-                    placeholder="Enter delivery address"
-                  />
-                  <Button variant="ghost" className="h-9 px-3" onClick={() => removeStop(index)}>
-                    <Trash2 className="mr-2 h-4 w-4" /> Remove
+                <div key={stop.id} className="flex items-center gap-2" style={{ maxHeight: 44 }}>
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
+                    {index + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <LocationAutocomplete
+                      value={stop.address}
+                      onChange={(address, lat, lng) => {
+                        if (address && isDuplicate(address, index)) {
+                          warnDuplicate();
+                          return;
+                        }
+                        updateStop(index, address, lat, lng);
+                      }}
+                      placeholder="Enter delivery address"
+                    />
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0" onClick={() => removeStop(index)}>
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
@@ -354,9 +502,6 @@ const Dashboard = () => {
                 </Select>
               </div>
             </div>
-            <div className="rounded-xl border border-border bg-secondary/10 p-4 text-sm text-muted-foreground">
-              {routeState.statusMessage}
-            </div>
             <Button className="w-full" variant="command" size="lg" onClick={optimizeRoute} disabled={loading}><Sparkles /> {loading ? "Optimizing…" : "Optimize Route"}</Button>
           </CardContent>
         </Card>
@@ -369,6 +514,30 @@ const Dashboard = () => {
             <RouteMap points={displayRoute.mapPoints} currentLocation={routeState.pickup.lat && routeState.pickup.lng ? { lat: routeState.pickup.lat, lng: routeState.pickup.lng } : undefined} />
           </CardContent>
         </Card>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ["Total Deliveries", activeStops.length.toString(), PackageCheck, "Active stops"],
+          ["Estimated Distance", activeStops.length === 0 ? "0 km" : `${displayRoute.totalDistanceKm} km`, Navigation, "AI calculated"],
+          ["Estimated Time", activeStops.length === 0 ? "0 min" : `${displayRoute.travelTimeMinutes} min`, Clock3, "Current ETA"],
+          ["Route Cost", activeStops.length === 0 ? "₹0.00" : `₹${displayRoute.routeCost.toFixed(2)}`, Fuel, "Projected expense"],
+        ].map(([label, value, Icon, meta]) => (
+          <Card key={label as string} className="animate-slide-up rounded-xl border-border bg-card shadow-soft">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">{label as string}</p>
+                  <p className="mt-2 font-display text-3xl font-bold">{value as string}</p>
+                </div>
+                <div className="grid h-12 w-12 place-items-center rounded-lg bg-secondary text-primary">
+                  <Icon className="h-6 w-6" />
+                </div>
+              </div>
+              <p className="mt-4 text-xs font-semibold text-success">{meta as string}</p>
+            </CardContent>
+          </Card>
+        ))}
       </section>
 
       {routeState.nearbyStops.length > 0 && (

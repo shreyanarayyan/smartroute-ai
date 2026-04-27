@@ -68,7 +68,7 @@ const Analytics = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Avg Fuel Cost</p>
-                <p className="mt-2 text-3xl font-bold">${analytics?.averageFuelCost.toFixed(2) ?? "4.25"}</p>
+                <p className="mt-2 text-3xl font-bold">₹{analytics?.averageFuelCost.toFixed(2) ?? "103.00"}</p>
                 <p className="text-xs text-green-600 mt-1">-8% efficiency gain</p>
               </div>
               <div className="grid h-12 w-12 place-items-center rounded-lg bg-green-100 text-green-600">

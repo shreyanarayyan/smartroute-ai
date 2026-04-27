@@ -41,11 +41,11 @@ const History = () => {
           { label: "Stop 2", address: "12 Market Street, Queens", lat: 40.7282, lng: -73.7949 },
         ],
         mapPoints: [],
-        totalDistanceMiles: 18.4,
+        totalDistanceKm: 29.6,
         travelTimeMinutes: 62,
         fuelGallons: 3.8,
-        fuelCost: 15.01,
-        routeCost: 48.6,
+        fuelCost: 385.00,
+        routeCost: 4250.00,
         estimatedArrival: new Date(Date.now() + 62 * 60000).toISOString(),
         efficiency: 84,
         fuelSaved: 12,
@@ -95,7 +95,7 @@ const History = () => {
               <div className="rounded-xl bg-secondary p-4">
                 <p className="text-sm text-muted-foreground">Avg Distance</p>
                 <p className="mt-2 text-xl font-bold">
-                  {(selectedRecords.reduce((sum, r) => sum + r.route.totalDistanceMiles, 0) / selectedRecords.length).toFixed(1)} mi
+                  {(selectedRecords.reduce((sum, r) => sum + r.route.totalDistanceKm, 0) / selectedRecords.length).toFixed(1)} km
                 </p>
               </div>
               <div className="rounded-xl bg-secondary p-4">
@@ -107,7 +107,7 @@ const History = () => {
               <div className="rounded-xl bg-secondary p-4">
                 <p className="text-sm text-muted-foreground">Avg Cost</p>
                 <p className="mt-2 text-xl font-bold">
-                  ${(selectedRecords.reduce((sum, r) => sum + r.route.routeCost, 0) / selectedRecords.length).toFixed(2)}
+                  ₹{(selectedRecords.reduce((sum, r) => sum + r.route.routeCost, 0) / selectedRecords.length).toFixed(2)}
                 </p>
               </div>
               <div className="rounded-xl bg-secondary p-4">
@@ -184,7 +184,7 @@ const History = () => {
                           </div>
                           <div className="rounded-lg bg-secondary p-3">
                             <p className="text-xs text-muted-foreground">Distance</p>
-                            <p className="text-lg font-bold">{record.route.totalDistanceMiles} mi</p>
+                            <p className="text-lg font-bold">{record.route.totalDistanceKm} km</p>
                           </div>
                           <div className="rounded-lg bg-secondary p-3">
                             <p className="text-xs text-muted-foreground">Time</p>
@@ -220,7 +220,7 @@ const History = () => {
                     <div className="space-y-2 mb-4">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Distance:</span>
-                        <span className="font-medium">{record.route.totalDistanceMiles} mi</span>
+                        <span className="font-medium">{record.route.totalDistanceKm} km</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Time:</span>
@@ -228,7 +228,7 @@ const History = () => {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Cost:</span>
-                        <span className="font-medium">${record.route.routeCost.toFixed(2)}</span>
+                        <span className="font-medium">₹{record.route.routeCost.toFixed(2)}</span>
                       </div>
                     </div>
                     <div className="flex gap-2">

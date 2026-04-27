@@ -45,7 +45,7 @@ const VehicleCard = ({ vehicle, onRemove, onAssignDriver }: VehicleCardProps) =>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Fuel className="h-4 w-4 text-muted-foreground" />
-            <span>{vehicle.mpg} MPG</span>
+            <span>{vehicle.mpg} km/L</span>
           </div>
         </div>
 

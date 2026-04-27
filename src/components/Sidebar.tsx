@@ -1,14 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Route, Truck, BarChart3, MapPin, Clock, Moon, Sun } from "lucide-react";
+import { LayoutDashboard, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
-  { label: "Routes", icon: Route, path: "/routes" },
-  { label: "Fleet", icon: Truck, path: "/fleet" },
-  { label: "Analytics", icon: BarChart3, path: "/analytics" },
-  { label: "Nearby Stops", icon: MapPin, path: "/nearby" },
-  { label: "History", icon: Clock, path: "/history" },
+
 ];
 
 const Sidebar = () => {

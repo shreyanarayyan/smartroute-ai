@@ -15,7 +15,7 @@ const defaultVehicle = {
   name: "",
   type: "van" as const,
   driver: "",
-  mpg: 22,
+  mpg: 10,
   status: "available" as const,
 };
 
@@ -52,8 +52,8 @@ const VehicleForm = ({ initialData, onSave }: VehicleFormProps) => {
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="grid gap-2">
-          <Label>MPG / efficiency</Label>
-          <Input type="number" value={vehicle.mpg} onChange={(event) => setVehicle({ ...vehicle, mpg: Number(event.target.value) })} placeholder="Miles per gallon" />
+          <Label>km/L / efficiency</Label>
+          <Input type="number" value={vehicle.mpg} onChange={(event) => setVehicle({ ...vehicle, mpg: Number(event.target.value) })} placeholder="Kilometers per litre" />
         </div>
         <div className="grid gap-2">
           <Label>Status</Label>

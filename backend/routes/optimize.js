@@ -3,90 +3,89 @@ import { predictRouteMetrics } from "../ml/routeModel.js";
 
 const router = express.Router();
 
-const EARTH_RADIUS_KM = 6371;
-
-function toRadians(value) {
-  return (value * Math.PI) / 180;
+// ── Haversine straight-line distance (km) ──────────────────────────────────
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function haversineDistance(a, b) {
-  const lat1 = toRadians(a.lat);
-  const lat2 = toRadians(b.lat);
-  const deltaLat = toRadians(b.lat - a.lat);
-  const deltaLng = toRadians(b.lng - a.lng);
-
-  const inside = Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
-
-  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(inside), Math.sqrt(1 - inside));
+// ── Build NxN distance matrix ───────────────────────────────────────────────
+function buildDistanceMatrix(points) {
+  const n = points.length;
+  const matrix = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (i !== j) {
+        matrix[i][j] = haversineDistance(
+          points[i].lat, points[i].lng,
+          points[j].lat, points[j].lng
+        );
+      }
+    }
+  }
+  return matrix;
 }
 
+// ── Nearest Neighbour TSP ───────────────────────────────────────────────────
+function nearestNeighbour(distanceMatrix, startIndex) {
+  const n = distanceMatrix.length;
+  const visited = new Array(n).fill(false);
+  const route = [startIndex];
+  visited[startIndex] = true;
+
+  for (let i = 0; i < n - 1; i++) {
+    const current = route[route.length - 1];
+    let nearestDist = Infinity;
+    let nearestIndex = -1;
+
+    for (let j = 0; j < n; j++) {
+      if (!visited[j] && distanceMatrix[current][j] < nearestDist) {
+        nearestDist = distanceMatrix[current][j];
+        nearestIndex = j;
+      }
+    }
+    visited[nearestIndex] = true;
+    route.push(nearestIndex);
+  }
+  return route;
+}
+
+// ── Address/coordinate normaliser ──────────────────────────────────────────
 function hashText(value = "") {
   let hash = 0;
-
   for (let i = 0; i < value.length; i += 1) {
     hash = (hash << 5) - hash + value.charCodeAt(i);
     hash |= 0;
   }
-
   return Math.abs(hash);
 }
 
 function normalizePoint(point) {
   if (point && typeof point.lat === "number" && typeof point.lng === "number") {
-    return {
-      address: point.address || "Unknown location",
-      lat: point.lat,
-      lng: point.lng,
-    };
+    return { address: point.address || "Unknown location", lat: point.lat, lng: point.lng };
   }
-
   const seed = hashText(point?.address || "Unknown location");
-  const latitude = ((seed % 180) - 90) + ((seed >> 4) % 10) * 0.03;
-  const longitude = (((seed >> 8) % 360) - 180) + ((seed >> 2) % 10) * 0.03;
-
-  return {
-    address: point?.address || "Unknown location",
-    lat: Number(latitude.toFixed(5)),
-    lng: Number(longitude.toFixed(5)),
-  };
+  const lat = ((seed % 180) - 90) + ((seed >> 4) % 10) * 0.03;
+  const lng = (((seed >> 8) % 360) - 180) + ((seed >> 2) % 10) * 0.03;
+  return { address: point?.address || "Unknown location", lat: Number(lat.toFixed(5)), lng: Number(lng.toFixed(5)) };
 }
 
-function optimizeStops(start, stops) {
-  const remaining = [...stops];
-  const route = [];
-  let current = start;
-
-  while (remaining.length) {
-    let nearestIndex = 0;
-    let nearestDistance = haversineDistance(current, remaining[0]);
-
-    for (let index = 1; index < remaining.length; index += 1) {
-      const distance = haversineDistance(current, remaining[index]);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = index;
-      }
-    }
-
-    const nextStop = remaining.splice(nearestIndex, 1)[0];
-    route.push(nextStop);
-    current = nextStop;
-  }
-
-  return route;
-}
-
+// ── Route stats builder ─────────────────────────────────────────────────────
 function buildRouteStats(start, orderedStops, options) {
   const points = [start, ...orderedStops];
-  const legs = points.slice(1).map((point, index) => {
-    const from = points[index];
-    return {
-      from,
-      to: point,
-      distance: haversineDistance(from, point),
-    };
-  });
+  const legs = points.slice(1).map((point, index) => ({
+    from: points[index],
+    to: point,
+    distance: haversineDistance(points[index].lat, points[index].lng, point.lat, point.lng),
+  }));
 
   const totalDistance = legs.reduce((sum, leg) => sum + leg.distance, 0);
   const speedKph = 30;
@@ -94,7 +93,6 @@ function buildRouteStats(start, orderedStops, options) {
   const mileage = options.vehicle === "truck" ? 8 : options.vehicle === "bike" ? 45 : 15;
   const fuelLitres = Number((totalDistance / mileage).toFixed(2));
   const fuelCost = Number((fuelLitres * 103).toFixed(2));
-
   const baseCharge = 150 + totalDistance * 12 + orderedStops.length * 80;
   const priorityModifier = options.priority === "urgent" ? 1.18 : options.priority === "eco" ? 0.88 : 1;
   const routeCost = Number((baseCharge * priorityModifier + fuelCost).toFixed(2));
@@ -123,6 +121,7 @@ function buildRouteStats(start, orderedStops, options) {
   };
 }
 
+// ── POST /api/optimize-route ────────────────────────────────────────────────
 router.post("/optimize-route", async (req, res) => {
   const { pickup, stops, priority = "balanced", vehicle = "van", fuelPrice = 103 } = req.body;
 
@@ -139,7 +138,28 @@ router.post("/optimize-route", async (req, res) => {
     return res.status(400).json({ error: "At least one valid stop is required." });
   }
 
-  const orderedStops = optimizeStops(startPoint, normalizedStops);
+  // All points: index 0 = pickup, 1..n = stops
+  const allPoints = [startPoint, ...normalizedStops];
+
+  console.log("\n─── Route Optimization ───────────────────────────────");
+  console.log("Original order:", allPoints.map((p, i) => `[${i}] ${p.address}`));
+
+  // Build NxN distance matrix
+  const distanceMatrix = buildDistanceMatrix(allPoints);
+  console.log("Distance matrix (km, rounded):");
+  distanceMatrix.forEach((row, i) => {
+    console.log(`  [${i}]`, row.map((d) => d.toFixed(1)).join("  "));
+  });
+
+  // Run Nearest Neighbour TSP starting from index 0 (pickup)
+  const routeIndices = nearestNeighbour(distanceMatrix, 0);
+  console.log("Optimized index order:", routeIndices);
+  console.log("Optimized stop order:", routeIndices.slice(1).map((i) => allPoints[i].address));
+  console.log("──────────────────────────────────────────────────────\n");
+
+  // Map indices back to point objects (skip 0 = pickup)
+  const orderedStops = routeIndices.slice(1).map((i) => allPoints[i]);
+
   const stats = buildRouteStats(startPoint, orderedStops, { priority, vehicle, fuelPrice });
   const mlPrediction = await predictRouteMetrics(stats.totalDistanceKm, normalizedStops.length, vehicle, priority);
 

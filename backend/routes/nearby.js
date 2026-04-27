@@ -4,13 +4,13 @@ import data from "../data-store.js";
 const router = express.Router();
 
 const toRadians = (value) => (value * Math.PI) / 180;
-const haversineMiles = (a, b) => {
+const haversineKm = (a, b) => {
   const lat1 = toRadians(a.lat);
   const lat2 = toRadians(b.lat);
   const dLat = toRadians(b.lat - a.lat);
   const dLon = toRadians(b.lng - a.lng);
   const hav = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 3958.8 * 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
+  return 6371 * 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
 };
 
 router.get("/", (req, res) => {
@@ -26,7 +26,7 @@ router.get("/", (req, res) => {
     { id: "nearby-4", address: "Broadway Dispatch Hub", lat: lat - 0.022, lng: lng - 0.013 },
   ].map((stop) => ({
     ...stop,
-    distanceMiles: Number(haversineMiles({ lat, lng }, stop).toFixed(1)),
+    distanceKm: Number(haversineKm({ lat, lng }, stop).toFixed(1)),
   }));
 
   res.json(suggestions);
@@ -42,7 +42,7 @@ router.post("/import", (req, res) => {
       pickup: { label: "Imported pickup", address: stop.address, lat: stop.lat, lng: stop.lng },
       orderedStops: [],
       mapPoints: [],
-      totalDistanceMiles: 0,
+      totalDistanceKm: 0,
       travelTimeMinutes: 0,
       fuelGallons: 0,
       fuelCost: 0,
