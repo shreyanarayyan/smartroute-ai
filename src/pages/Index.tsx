@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Activity,
   BarChart3,
@@ -8,6 +8,7 @@ import {
   MapPin,
   Navigation,
   PackageCheck,
+  Pencil,
   Plus,
   Route,
   Sparkles,
@@ -42,7 +43,7 @@ type OptimizedRoute = {
   pickup: RoutePoint;
   orderedStops: RoutePoint[];
   mapPoints: RoutePoint[];
-  totalDistanceMiles: number;
+  totalDistanceKm: number;
   travelTimeMinutes: number;
   fuelGallons: number;
   fuelCost: number;
@@ -65,11 +66,7 @@ const createStop = (address: string, lat: number | null = null, lng: number | nu
   lng,
 });
 
-const baseStops: Stop[] = [
-  createStop("88 Harbor Way, Brooklyn"),
-  createStop("12 Market Street, Queens"),
-  createStop("440 Hudson Ave, Manhattan"),
-];
+const baseStops: Stop[] = [];
 
 const deliveryData = [
   { day: "Mon", deliveries: 42, saved: 7 },
@@ -110,10 +107,15 @@ const reverseGeocode = async (lat: number, lng: number) => {
   try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { "Accept-Language": "en" } }
     );
     const data = await response.json();
-    return data?.display_name || `Lat ${lat.toFixed(4)}, Lng ${lng.toFixed(4)}`;
-  } catch {
+    if (data && data.display_name) {
+      return data.display_name;
+    }
+    return `Lat ${lat.toFixed(4)}, Lng ${lng.toFixed(4)}`;
+  } catch (error) {
+    console.error("Reverse geocode error:", error);
     return `Lat ${lat.toFixed(4)}, Lng ${lng.toFixed(4)}`;
   }
 };
@@ -136,10 +138,83 @@ const Index = () => {
   const [routeResult, setRouteResult] = useState<OptimizedRoute | null>(null);
   const [statusMessage, setStatusMessage] = useState("Enter your pickup and stops, then optimize.");
   const [loading, setLoading] = useState(false);
+  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([]);
+  const [showPickupDropdown, setShowPickupDropdown] = useState(false);
+  const pickupRef = useRef<HTMLDivElement>(null);
+
+  const [isAddingStop, setIsAddingStop] = useState(false);
+  const [stopSearchQuery, setStopSearchQuery] = useState("");
+  const [stopSuggestions, setStopSuggestions] = useState<any[]>([]);
+  const [showStopDropdown, setShowStopDropdown] = useState(false);
+  const stopSearchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickupRef.current && !pickupRef.current.contains(event.target as Node)) {
+        setShowPickupDropdown(false);
+      }
+      if (stopSearchRef.current && !stopSearchRef.current.contains(event.target as Node)) {
+        setShowStopDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (pickup.address.length < 3 || pickup.lat !== null) {
+      setPickupSuggestions([]);
+      setShowPickupDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(pickup.address)}&limit=5&countrycodes=in`,
+        );
+        const data = await response.json();
+        setPickupSuggestions(data);
+        setShowPickupDropdown(data.length > 0);
+      } catch (error) {
+        console.error("Pickup autocomplete error:", error);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [pickup.address, pickup.lat]);
+
+  useEffect(() => {
+    if (stopSearchQuery.length < 3) {
+      setStopSuggestions([]);
+      setShowStopDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(stopSearchQuery)}&limit=5&countrycodes=in`,
+        );
+        const data = await response.json();
+        setStopSuggestions(data);
+        setShowStopDropdown(data.length > 0);
+      } catch (error) {
+        console.error("Stop autocomplete error:", error);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [stopSearchQuery]);
 
   useEffect(() => {
     setRouteResult(null);
   }, [pickup.address, pickup.lat, pickup.lng, priority, vehicle, JSON.stringify(stops.map((stop) => stop.address))]);
+
+  useEffect(() => {
+    // Automatically get current location on load
+    handleUseCurrentLocation();
+  }, []); // Run once on mount
 
   const activeStops = stops.filter((stop) => stop.address.trim());
 
@@ -154,15 +229,15 @@ const Index = () => {
       lng: stop.lng ?? Number((baseLng + (index + 1) * 0.035).toFixed(6)),
     }));
 
-    const distance = Math.max(
-      8,
-      activeStops.length * 7.4 * (priority === "urgent" ? 1.08 : priority === "eco" ? 0.92 : 1) * (vehicle === "bike" ? 0.72 : vehicle === "truck" ? 1.18 : 1),
+    const distance = activeStops.length === 0 ? 0 : Math.max(
+      12.87,
+      activeStops.length * 11.91 * (priority === "urgent" ? 1.08 : priority === "eco" ? 0.92 : 1) * (vehicle === "bike" ? 0.72 : vehicle === "truck" ? 1.18 : 1),
     );
-    const travelTimeMinutes = Math.max(10, Math.round(distance * (vehicle === "bike" ? 4.8 : vehicle === "truck" ? 3.6 : 3.2)));
-    const fuelGallons = vehicle === "bike" ? 0 : Math.max(0.3, distance / (vehicle === "truck" ? 8 : 24));
-    const fuelCost = Number((fuelGallons * 3.95).toFixed(2));
-    const routeCost = Number((distance * 1.7 + fuelCost + activeStops.length * 4).toFixed(2));
-    const estimatedArrival = new Date(Date.now() + travelTimeMinutes * 60000).toISOString();
+    const travelTimeMinutes = activeStops.length === 0 ? 0 : Math.max(10, Math.round(distance * (vehicle === "bike" ? 2.98 : vehicle === "truck" ? 2.24 : 1.99)));
+    const fuelLitres = activeStops.length === 0 || vehicle === "bike" ? 0 : Math.max(1, (distance / 1.60934 / (vehicle === "truck" ? 8 : 24)) * 3.785);
+    const fuelCost = Number((fuelLitres * 103).toFixed(2));
+    const routeCost = activeStops.length === 0 ? 0 : Number((distance * 88.73 + fuelCost + activeStops.length * 336).toFixed(2));
+    const estimatedArrival = activeStops.length === 0 ? new Date().toISOString() : new Date(Date.now() + travelTimeMinutes * 60000).toISOString();
 
     return {
       pickup: {
@@ -181,9 +256,9 @@ const Index = () => {
         },
         ...orderedStops,
       ],
-      totalDistanceMiles: Number(distance.toFixed(1)),
+      totalDistanceKm: Number(distance.toFixed(1)),
       travelTimeMinutes,
-      fuelGallons: Number(fuelGallons.toFixed(1)),
+      fuelGallons: Number(fuelLitres.toFixed(1)),
       fuelCost,
       routeCost,
       estimatedArrival,
@@ -191,7 +266,7 @@ const Index = () => {
       fuelSaved: Math.min(100, Math.round(10 + activeStops.length * 2 + (priority === "eco" ? 10 : 3))),
       modelPrediction: {
         predictedTime: travelTimeMinutes,
-        predictedFuel: Number(fuelGallons.toFixed(1)),
+        predictedFuel: Number(fuelLitres.toFixed(1)),
         predictedCost: Number(routeCost.toFixed(2)),
         predictedScore: Math.min(100, Math.max(0, Math.round(72 + activeStops.length * 2 + (priority === "eco" ? 8 : priority === "urgent" ? 2 : 4)))),
       },
@@ -203,11 +278,37 @@ const Index = () => {
   const updateStop = (index: number, address: string) =>
     setStops((current) =>
       current.map((stop, stopIndex) =>
-        stopIndex === index ? { ...stop, address, lat: null, lng: null } : stop,
+        stopIndex === index ? { ...stop, address } : stop,
       ),
     );
 
-  const addStop = () => setStops((current) => [...current, createStop("")]);
+  const editStop = (index: number) => {
+    const stop = stops[index];
+    setStopSearchQuery(stop.address);
+    setIsAddingStop(true);
+    // Remove the old stop when editing so it can be replaced by the searched one
+    setStops((current) => current.filter((_, i) => i !== index));
+    setStatusMessage("Editing delivery stop...");
+  };
+
+  const addStop = () => {
+    setIsAddingStop(true);
+    setStopSearchQuery("");
+  };
+
+  const confirmStop = (suggestion: any) => {
+    const newStop = createStop(
+      suggestion.display_name,
+      parseFloat(suggestion.lat),
+      parseFloat(suggestion.lon),
+    );
+    setStops((current) => [...current, newStop]);
+    setStopSearchQuery("");
+    setStopSuggestions([]);
+    setShowStopDropdown(false);
+    setIsAddingStop(false);
+    setStatusMessage(`Stop added: ${suggestion.display_name}`);
+  };
 
   const removeStop = (index: number) => setStops((current) => current.filter((_, stopIndex) => stopIndex !== index));
 
@@ -280,7 +381,7 @@ const Index = () => {
           stops: activeStops.map((stop) => ({ address: stop.address, lat: stop.lat, lng: stop.lng })),
           priority,
           vehicle,
-          fuelPrice: 3.95,
+          fuelPrice: 103,
         }),
       });
 
@@ -350,9 +451,9 @@ const Index = () => {
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {[
                 ["Total Deliveries", activeStops.length.toString(), PackageCheck, "Active stops"],
-                ["Estimated Distance", `${displayRoute.totalDistanceMiles} mi`, Navigation, "AI calculated"],
+                ["Estimated Distance", `${displayRoute.totalDistanceKm} km`, Navigation, "AI calculated"],
                 ["Estimated Time", `${displayRoute.travelTimeMinutes} min`, Clock3, "Current ETA"],
-                ["Fuel Cost", `$${displayRoute.fuelCost.toFixed(2)}`, Fuel, "Projected expense"],
+                ["Fuel Cost", `₹${displayRoute.fuelCost.toFixed(2)}`, Fuel, "Projected expense"],
               ].map(([label, value, Icon, meta]) => (
                 <Card key={label as string} className="animate-slide-up rounded-xl border-border bg-card shadow-soft">
                   <CardContent className="p-5">
@@ -377,26 +478,93 @@ const Index = () => {
                   <CardTitle className="flex items-center gap-2"><Route className="text-primary" /> Delivery Route Input</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  <div className="space-y-2">
+                  <div className="relative space-y-2" ref={pickupRef}>
                     <Label>Pickup location</Label>
-                    <Input value={pickup.address} onChange={(event) => setPickup({ ...pickup, address: event.target.value, lat: null, lng: null })} />
+                    <Input
+                      value={pickup.address}
+                      onChange={(event) => setPickup({ ...pickup, address: event.target.value, lat: null, lng: null })}
+                      placeholder="Search pickup address"
+                    />
+                    {showPickupDropdown && (
+                      <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-white p-1 shadow-lg">
+                        {pickupSuggestions.map((suggestion, index) => (
+                          <div
+                            key={index}
+                            className="flex cursor-pointer items-start gap-3 rounded-lg p-3 text-sm transition hover:bg-secondary"
+                            onClick={() => {
+                              setPickup({
+                                ...pickup,
+                                address: suggestion.display_name,
+                                lat: parseFloat(suggestion.lat),
+                                lng: parseFloat(suggestion.lon),
+                              });
+                              setPickupSuggestions([]);
+                              setShowPickupDropdown(false);
+                              setStatusMessage(`Pickup set to: ${suggestion.display_name}`);
+                            }}
+                          >
+                            <span className="mt-0.5 text-base">📍</span>
+                            <span className="text-foreground">{suggestion.display_name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button variant="panel" onClick={handleUseCurrentLocation}><MapPin /> Use my current location</Button>
                     <Button variant="panel" onClick={importStops}><PackageCheck /> Load sample stop list</Button>
                   </div>
                   <div className="space-y-3">
-                    <Label>Delivery stops</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Delivery stops</Label>
+                      <Button variant="panel" size="sm" onClick={addStop}><Plus className="mr-1 h-3.5 w-3.5" /> Add delivery stop</Button>
+                    </div>
                     {stops.map((stop, index) => (
                       <div key={stop.id} className="flex flex-wrap items-center gap-3">
                         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">{index + 1}</div>
-                        <Input className="flex-1 min-w-[220px]" value={stop.address} onChange={(event) => updateStop(index, event.target.value)} placeholder="Enter delivery address" />
-                        <Button variant="ghost" className="h-9 px-3" onClick={() => removeStop(index)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> Remove
-                        </Button>
+                        <Input className="flex-1 min-w-[220px]" value={stop.address} readOnly placeholder="Enter delivery address" />
+                        <div className="flex gap-2">
+                          <Button variant="ghost" className="h-9 w-9 p-0" onClick={() => editStop(index)} title="Edit stop">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" className="h-9 w-9 p-0 text-destructive hover:text-destructive" onClick={() => removeStop(index)} title="Remove stop">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
-                    <Button variant="panel" onClick={addStop}><Plus /> Add delivery stop</Button>
+                    {isAddingStop && (
+                      <div className="relative flex flex-wrap items-center gap-3" ref={stopSearchRef}>
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border-2 border-dashed border-primary text-primary text-sm font-bold">?</div>
+                        <Input
+                          className="flex-1 min-w-[220px]"
+                          value={stopSearchQuery}
+                          onChange={(e) => setStopSearchQuery(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && stopSuggestions.length > 0) {
+                              confirmStop(stopSuggestions[0]);
+                            }
+                          }}
+                          placeholder="Search for delivery address..."
+                          autoFocus
+                        />
+                        {showStopDropdown && (
+                          <div className="absolute top-full left-12 z-[1000] mt-1 w-[calc(100%-3rem)] rounded-xl border border-border bg-white p-1 shadow-lg">
+                            {stopSuggestions.map((suggestion, index) => (
+                              <div
+                                key={index}
+                                className="flex cursor-pointer items-start gap-3 rounded-lg p-3 text-sm transition hover:bg-secondary"
+                                onClick={() => confirmStop(suggestion)}
+                              >
+                                <span className="mt-0.5 text-base">📍</span>
+                                <span className="text-foreground">{suggestion.display_name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <Button variant="ghost" className="h-9 px-3" onClick={() => setIsAddingStop(false)}>Cancel</Button>
+                      </div>
+                    )}
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
@@ -451,11 +619,11 @@ const Index = () => {
                   </div>
                   <div className="rounded-xl bg-secondary p-4">
                     <p className="text-xs text-muted-foreground">Predicted fuel usage</p>
-                    <p className="mt-1 text-xl font-bold">{displayRoute.modelPrediction?.predictedFuel ?? displayRoute.fuelGallons} gal</p>
+                    <p className="mt-1 text-xl font-bold">{displayRoute.modelPrediction?.predictedFuel ?? displayRoute.fuelGallons} L</p>
                   </div>
                   <div className="rounded-xl bg-secondary p-4">
                     <p className="text-xs text-muted-foreground">Predicted route cost</p>
-                    <p className="mt-1 text-xl font-bold">${displayRoute.modelPrediction?.predictedCost ?? displayRoute.routeCost}</p>
+                    <p className="mt-1 text-xl font-bold">₹{displayRoute.modelPrediction?.predictedCost ?? displayRoute.routeCost}</p>
                   </div>
                   <div className="rounded-xl bg-secondary p-4">
                     <p className="text-xs text-muted-foreground">ML route score</p>
@@ -495,9 +663,9 @@ const Index = () => {
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      ["Distance", `${displayRoute.totalDistanceMiles} mi`],
+                      ["Distance", `${displayRoute.totalDistanceKm} km`],
                       ["Travel time", `${displayRoute.travelTimeMinutes} min`],
-                      ["Route cost", `$${displayRoute.routeCost.toFixed(2)}`],
+                      ["Route cost", `₹${displayRoute.routeCost.toFixed(2)}`],
                       ["ETA", new Date(displayRoute.estimatedArrival).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })],
                     ].map(([label, value]) => (
                       <div key={label as string} className="rounded-lg bg-secondary p-4">
@@ -520,58 +688,15 @@ const Index = () => {
                 </CardContent>
               </Card>
 
-              <div className="grid gap-6 lg:grid-cols-2">
-                <Card className="rounded-xl shadow-soft">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Sparkles className="text-primary" /> AI Insights</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 text-sm text-muted-foreground">
-                    <p className="rounded-lg bg-secondary p-4 text-foreground">Routes are optimized by distance and order, with fuel-efficient sequencing for your chosen vehicle type.</p>
-                    <div className="flex gap-3"><TimerReset className="h-5 w-5 shrink-0 text-success" /> Keep urgent stops at the front for the fastest completion.</div>
-                    <div className="flex gap-3"><Fuel className="h-5 w-5 shrink-0 text-success" /> Eco mode reduces fuel spend and route cost.</div>
-                    <div className="flex gap-3"><Zap className="h-5 w-5 shrink-0 text-warning" /> Refresh the route if addresses change or new stops arrive.</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="rounded-xl bg-gradient-command text-primary-foreground shadow-command">
-                  <CardHeader>
-                    <CardTitle>Fuel Consumption Estimate</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="font-display text-5xl font-bold">{Math.max(0.5, displayRoute.fuelGallons).toFixed(1)} gal</p>
-                    <p className="mt-4 text-primary-foreground/76">Projected for current vehicle, route distance, and stop count.</p>
-                    <div className="mt-8 rounded-lg bg-primary-foreground/12 p-4">
-                      <p className="text-sm font-semibold">Route summary</p>
-                      <p className="mt-1 text-sm text-primary-foreground/72">{displayRoute.efficiency}% efficiency and {displayRoute.fuelSaved}% projected fuel savings.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
-
-            <section className="grid gap-6 lg:grid-cols-3">
-              <Card className="rounded-xl shadow-soft lg:col-span-2">
-                <CardHeader><CardTitle>Time Saved Analytics</CardTitle></CardHeader>
-                <CardContent className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={deliveryData}>
-                      <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                      <YAxis hide />
-                      <Tooltip />
-                      <Area type="monotone" dataKey="saved" stroke="hsl(var(--accent))" fill="hsl(var(--accent) / 0.22)" strokeWidth={3} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-              <Card className="rounded-xl bg-gradient-command text-primary-foreground shadow-command">
-                <CardHeader><CardTitle>Fuel Consumption Estimate</CardTitle></CardHeader>
-                <CardContent>
-                  <p className="font-display text-5xl font-bold">{Math.max(0.5, displayRoute.fuelGallons).toFixed(1)} gal</p>
-                  <p className="mt-4 text-primary-foreground/76">Projected for current vehicle, route distance, and stop count.</p>
-                  <div className="mt-8 rounded-lg bg-primary-foreground/12 p-4">
-                    <p className="text-sm font-semibold">Route summary</p>
-                    <p className="mt-1 text-sm text-primary-foreground/72">{displayRoute.efficiency}% efficiency and {displayRoute.fuelSaved}% projected fuel savings.</p>
-                  </div>
+              <Card className="rounded-xl shadow-soft">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Sparkles className="text-primary" /> AI Insights</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm text-muted-foreground">
+                  <p className="rounded-lg bg-secondary p-4 text-foreground">Routes are optimized by distance and order, with fuel-efficient sequencing for your chosen vehicle type.</p>
+                  <div className="flex gap-3"><TimerReset className="h-5 w-5 shrink-0 text-success" /> Keep urgent stops at the front for the fastest completion.</div>
+                  <div className="flex gap-3"><Fuel className="h-5 w-5 shrink-0 text-success" /> Eco mode reduces fuel spend and route cost.</div>
+                  <div className="flex gap-3"><Zap className="h-5 w-5 shrink-0 text-warning" /> Refresh the route if addresses change or new stops arrive.</div>
                 </CardContent>
               </Card>
             </section>

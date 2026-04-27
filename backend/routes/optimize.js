@@ -3,7 +3,7 @@ import { predictRouteMetrics } from "../ml/routeModel.js";
 
 const router = express.Router();
 
-const EARTH_RADIUS_MILES = 3958.8;
+const EARTH_RADIUS_KM = 6371;
 
 function toRadians(value) {
   return (value * Math.PI) / 180;
@@ -18,7 +18,7 @@ function haversineDistance(a, b) {
   const inside = Math.sin(deltaLat / 2) ** 2 +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
 
-  return EARTH_RADIUS_MILES * 2 * Math.atan2(Math.sqrt(inside), Math.sqrt(1 - inside));
+  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(inside), Math.sqrt(1 - inside));
 }
 
 function hashText(value = "") {
@@ -89,13 +89,13 @@ function buildRouteStats(start, orderedStops, options) {
   });
 
   const totalDistance = legs.reduce((sum, leg) => sum + leg.distance, 0);
-  const speedMph = options.vehicle === "truck" ? 28 : options.vehicle === "bike" ? 14 : 22;
-  const travelTimeMinutes = Math.max(10, Math.round(totalDistance / speedMph * 60 + orderedStops.length * 4));
+  const speedKph = options.vehicle === "truck" ? 45 : options.vehicle === "bike" ? 22 : 35;
+  const travelTimeMinutes = Math.max(10, Math.round(totalDistance / speedKph * 60 + orderedStops.length * 4));
   const mpg = options.vehicle === "truck" ? 8 : options.vehicle === "bike" ? 0 : 24;
-  const fuelGallons = options.vehicle === "bike" ? 0 : Number(Math.max(0.2, totalDistance / mpg).toFixed(1));
-  const fuelCost = Number((fuelGallons * options.fuelPrice).toFixed(2));
+  const fuelLitres = options.vehicle === "bike" ? 0 : Number(Math.max(1, (totalDistance / 1.60934 / mpg) * 3.785).toFixed(1));
+  const fuelCost = Number((fuelLitres * options.fuelPrice).toFixed(2));
 
-  const baseCharge = Math.max(12, totalDistance * 1.7 + orderedStops.length * 5);
+  const baseCharge = Math.max(1008, totalDistance * 88.73 + orderedStops.length * 420);
   const priorityModifier = options.priority === "urgent" ? 1.18 : options.priority === "eco" ? 0.88 : 1;
   const routeCost = Number((baseCharge * priorityModifier + fuelCost).toFixed(2));
 
@@ -112,9 +112,9 @@ function buildRouteStats(start, orderedStops, options) {
       lat: point.lat,
       lng: point.lng,
     })),
-    totalDistanceMiles: Number(totalDistance.toFixed(1)),
+    totalDistanceKm: Number(totalDistance.toFixed(1)),
     travelTimeMinutes,
-    fuelGallons,
+    fuelGallons: fuelLitres,
     fuelCost,
     routeCost,
     estimatedArrival: new Date(Date.now() + travelTimeMinutes * 60000).toISOString(),
@@ -124,7 +124,7 @@ function buildRouteStats(start, orderedStops, options) {
 }
 
 router.post("/optimize-route", async (req, res) => {
-  const { pickup, stops, priority = "balanced", vehicle = "van", fuelPrice = 3.95 } = req.body;
+  const { pickup, stops, priority = "balanced", vehicle = "van", fuelPrice = 103 } = req.body;
 
   if (!pickup || !Array.isArray(stops) || stops.length === 0) {
     return res.status(400).json({ error: "Pickup and stops are required." });
@@ -141,7 +141,7 @@ router.post("/optimize-route", async (req, res) => {
 
   const orderedStops = optimizeStops(startPoint, normalizedStops);
   const stats = buildRouteStats(startPoint, orderedStops, { priority, vehicle, fuelPrice });
-  const mlPrediction = await predictRouteMetrics(stats.totalDistanceMiles, normalizedStops.length, vehicle, priority);
+  const mlPrediction = await predictRouteMetrics(stats.totalDistanceKm, normalizedStops.length, vehicle, priority);
 
   const mergedStats = {
     ...stats,
