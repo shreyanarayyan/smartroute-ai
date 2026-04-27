@@ -20,13 +20,13 @@ function encodeFeatures(distance, stopCount, vehicle, priority) {
 }
 
 function createSample(distance, stopCount, vehicle, priority) {
-  const speed = vehicle === "truck" ? 28 : vehicle === "bike" ? 14 : 22;
-  const baseTime = distance / speed * 60 + stopCount * 4;
+  const speed = vehicle === "truck" ? 45 : vehicle === "bike" ? 22 : 35;
+  const baseTime = (distance / speed) * 60 + stopCount * 4;
   const mpg = vehicle === "truck" ? 8 : vehicle === "bike" ? 0 : 24;
-  const fuel = vehicle === "bike" ? 0 : Math.max(0.2, distance / mpg);
+  const fuel = vehicle === "bike" ? 0 : Math.max(1, (distance / 1.60934 / mpg) * 3.785);
   const priorityModifier = priority === "urgent" ? 1.18 : priority === "eco" ? 0.88 : 1;
-  const routeCost = Math.max(12, distance * 1.7 + stopCount * 5) * priorityModifier + fuel * 3.95;
-  const score = Math.min(100, Math.max(50, 80 + stopCount * 2 + (priority === "eco" ? 8 : priority === "urgent" ? 2 : 4) - distance * 0.05));
+  const routeCost = Math.max(1008, distance * 88.73 + stopCount * 420) * priorityModifier + fuel * 103;
+  const score = Math.min(100, Math.max(50, 80 + stopCount * 2 + (priority === "eco" ? 8 : priority === "urgent" ? 2 : 4) - distance * 0.03));
 
   return {
     time: baseTime * (1 + (Math.random() - 0.5) * 0.08),
