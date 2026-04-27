@@ -99,14 +99,18 @@ const Dashboard = () => {
       lng: stop.lng ?? Number((baseLng + (index + 1) * 0.035).toFixed(6)),
     }));
 
-    const distance = Math.max(
+    const distance = activeStops.length === 0 ? 0 : Math.max(
       8,
       activeStops.length * 7.4 * (routeState.priority === "urgent" ? 1.08 : routeState.priority === "eco" ? 0.92 : 1) * (routeState.vehicle === "bike" ? 0.72 : routeState.vehicle === "truck" ? 1.18 : 1),
     );
-    const travelTimeMinutes = Math.max(10, Math.round(distance * (routeState.vehicle === "bike" ? 4.8 : routeState.vehicle === "truck" ? 3.6 : 3.2)));
-    const fuelGallons = routeState.vehicle === "bike" ? 0 : Math.max(0.3, distance / (routeState.vehicle === "truck" ? 8 : 24));
-    const fuelCost = Number((fuelGallons * 3.95).toFixed(2));
-    const routeCost = Number((distance * 1.7 + fuelCost + activeStops.length * 4).toFixed(2));
+    const speedKph = 30;
+    const travelTimeMinutes = distance === 0 ? 0 : Math.max(5, Math.round((distance / speedKph) * 60 + activeStops.length * 5));
+    const mileage = routeState.vehicle === "truck" ? 8 : routeState.vehicle === "bike" ? 45 : 15;
+    const fuelGallons = Number((distance / mileage).toFixed(2));
+    const fuelCost = Number((fuelGallons * 103).toFixed(2));
+    const baseCharge = 150 + distance * 12 + activeStops.length * 80;
+    const priorityModifier = routeState.priority === "urgent" ? 1.18 : routeState.priority === "eco" ? 0.88 : 1;
+    const routeCost = distance === 0 ? 0 : Number((baseCharge * priorityModifier + fuelCost).toFixed(2));
     const estimatedArrival = new Date(Date.now() + travelTimeMinutes * 60000).toISOString();
 
     return {
@@ -126,9 +130,9 @@ const Dashboard = () => {
         },
         ...orderedStops,
       ],
-      totalDistanceMiles: Number(distance.toFixed(1)),
+      totalDistanceKm: Number(distance.toFixed(1)),
       travelTimeMinutes,
-      fuelGallons: Number(fuelGallons.toFixed(1)),
+      fuelGallons,
       fuelCost,
       routeCost,
       estimatedArrival,
@@ -136,7 +140,7 @@ const Dashboard = () => {
       fuelSaved: Math.min(100, Math.round(10 + activeStops.length * 2 + (routeState.priority === "eco" ? 10 : 3))),
       modelPrediction: {
         predictedTime: travelTimeMinutes,
-        predictedFuel: Number(fuelGallons.toFixed(1)),
+        predictedFuel: fuelGallons,
         predictedCost: Number(routeCost.toFixed(2)),
         predictedScore: Math.min(100, Math.max(0, Math.round(72 + activeStops.length * 2 + (routeState.priority === "eco" ? 8 : routeState.priority === "urgent" ? 2 : 4)))),
       },
@@ -237,7 +241,7 @@ const Dashboard = () => {
           stops: activeStops.map((stop) => ({ address: stop.address, lat: stop.lat, lng: stop.lng })),
           priority: routeState.priority,
           vehicle: routeState.vehicle,
-          fuelPrice: 3.95,
+          fuelPrice: 103,
         }),
       });
 
@@ -273,9 +277,9 @@ const Dashboard = () => {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["Total Deliveries", activeStops.length.toString(), PackageCheck, "Active stops"],
-          ["Estimated Distance", `${displayRoute.totalDistanceMiles} mi`, Navigation, "AI calculated"],
-          ["Estimated Time", `${displayRoute.travelTimeMinutes} min`, Clock3, "Current ETA"],
-          ["Route Cost", `$${displayRoute.routeCost.toFixed(2)}`, Fuel, "Projected expense"],
+          ["Estimated Distance", activeStops.length === 0 ? "0 km" : `${displayRoute.totalDistanceKm} km`, Navigation, "AI calculated"],
+          ["Estimated Time", activeStops.length === 0 ? "0 min" : `${displayRoute.travelTimeMinutes} min`, Clock3, "Current ETA"],
+          ["Route Cost", activeStops.length === 0 ? "₹0.00" : `₹${displayRoute.routeCost.toFixed(2)}`, Fuel, "Projected expense"],
         ].map(([label, value, Icon, meta]) => (
           <Card key={label as string} className="animate-slide-up rounded-xl border-border bg-card shadow-soft">
             <CardContent className="p-5">
@@ -393,10 +397,10 @@ const Dashboard = () => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               {[
-                ["Distance", `${displayRoute.totalDistanceMiles} mi`],
-                ["Travel time", `${displayRoute.travelTimeMinutes} min`],
-                ["Route cost", `$${displayRoute.routeCost.toFixed(2)}`],
-                ["ETA", new Date(displayRoute.estimatedArrival).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })],
+                ["Distance", activeStops.length === 0 ? "0 km" : `${displayRoute.totalDistanceKm} km`],
+                ["Travel time", activeStops.length === 0 ? "0 min" : `${displayRoute.travelTimeMinutes} min`],
+                ["Route cost", activeStops.length === 0 ? "₹0.00" : `₹${displayRoute.routeCost.toFixed(2)}`],
+                ["ETA", activeStops.length === 0 ? "--:--" : new Date(displayRoute.estimatedArrival).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })],
               ].map(([label, value]) => (
                 <div key={label as string} className="rounded-lg bg-secondary p-4">
                   <p className="text-xs text-muted-foreground">{label as string}</p>

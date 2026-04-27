@@ -31,14 +31,18 @@ const RoutesPage = () => {
       lng: stop.lng ?? Number((baseLng + (index + 1) * 0.035).toFixed(6)),
     }));
 
-    const distance = Math.max(
+    const distance = activeStops.length === 0 ? 0 : Math.max(
       8,
       activeStops.length * 7.4 * (routeState.priority === "urgent" ? 1.08 : routeState.priority === "eco" ? 0.92 : 1) * (routeState.vehicle === "bike" ? 0.72 : routeState.vehicle === "truck" ? 1.18 : 1),
     );
-    const travelTimeMinutes = Math.max(10, Math.round(distance * (routeState.vehicle === "bike" ? 4.8 : routeState.vehicle === "truck" ? 3.6 : 3.2)));
-    const fuelGallons = routeState.vehicle === "bike" ? 0 : Math.max(0.3, distance / (routeState.vehicle === "truck" ? 8 : 24));
-    const fuelCost = Number((fuelGallons * 3.95).toFixed(2));
-    const routeCost = Number((distance * 1.7 + fuelCost + activeStops.length * 4).toFixed(2));
+    const speedKph = 30;
+    const travelTimeMinutes = distance === 0 ? 0 : Math.max(5, Math.round((distance / speedKph) * 60 + activeStops.length * 5));
+    const mileage = routeState.vehicle === "truck" ? 8 : routeState.vehicle === "bike" ? 45 : 15;
+    const fuelGallons = Number((distance / mileage).toFixed(2));
+    const fuelCost = Number((fuelGallons * 103).toFixed(2));
+    const baseCharge = 150 + distance * 12 + activeStops.length * 80;
+    const priorityModifier = routeState.priority === "urgent" ? 1.18 : routeState.priority === "eco" ? 0.88 : 1;
+    const routeCost = distance === 0 ? 0 : Number((baseCharge * priorityModifier + fuelCost).toFixed(2));
     const estimatedArrival = new Date(Date.now() + travelTimeMinutes * 60000).toISOString();
 
     return {
@@ -58,9 +62,9 @@ const RoutesPage = () => {
         },
         ...orderedStops,
       ],
-      totalDistanceMiles: Number(distance.toFixed(1)),
+      totalDistanceKm: Number(distance.toFixed(1)),
       travelTimeMinutes,
-      fuelGallons: Number(fuelGallons.toFixed(1)),
+      fuelGallons,
       fuelCost,
       routeCost,
       estimatedArrival,
@@ -68,7 +72,7 @@ const RoutesPage = () => {
       fuelSaved: Math.min(100, Math.round(10 + activeStops.length * 2 + (routeState.priority === "eco" ? 10 : 3))),
       modelPrediction: {
         predictedTime: travelTimeMinutes,
-        predictedFuel: Number(fuelGallons.toFixed(1)),
+        predictedFuel: fuelGallons,
         predictedCost: Number(routeCost.toFixed(2)),
         predictedScore: Math.min(100, Math.max(0, Math.round(72 + activeStops.length * 2 + (routeState.priority === "eco" ? 8 : routeState.priority === "urgent" ? 2 : 4)))),
       },
@@ -171,7 +175,7 @@ const RoutesPage = () => {
                 </div>
                 <div className="rounded-xl bg-secondary p-4">
                   <p className="text-xs text-muted-foreground">Distance</p>
-                  <p className="mt-2 text-xl font-bold">{displayRoute.totalDistanceMiles} mi</p>
+                  <p className="mt-2 text-xl font-bold">{displayRoute.totalDistanceKm} km</p>
                 </div>
                 <div className="rounded-xl bg-secondary p-4">
                   <p className="text-xs text-muted-foreground">Efficiency</p>
@@ -211,7 +215,7 @@ const RoutesPage = () => {
                           {savedRoute.orderedStops.length} stops
                         </Badge>
                         <Badge variant="outline" className="text-xs">
-                          {savedRoute.totalDistanceMiles} mi
+                          {savedRoute.totalDistanceKm} km
                         </Badge>
                       </div>
                     </div>

@@ -89,13 +89,13 @@ function buildRouteStats(start, orderedStops, options) {
   });
 
   const totalDistance = legs.reduce((sum, leg) => sum + leg.distance, 0);
-  const speedKph = options.vehicle === "truck" ? 45 : options.vehicle === "bike" ? 22 : 35;
-  const travelTimeMinutes = Math.max(10, Math.round(totalDistance / speedKph * 60 + orderedStops.length * 4));
-  const mpg = options.vehicle === "truck" ? 8 : options.vehicle === "bike" ? 0 : 24;
-  const fuelLitres = options.vehicle === "bike" ? 0 : Number(Math.max(1, (totalDistance / 1.60934 / mpg) * 3.785).toFixed(1));
-  const fuelCost = Number((fuelLitres * options.fuelPrice).toFixed(2));
+  const speedKph = 30;
+  const travelTimeMinutes = Math.max(5, Math.round((totalDistance / speedKph) * 60 + orderedStops.length * 5));
+  const mileage = options.vehicle === "truck" ? 8 : options.vehicle === "bike" ? 45 : 15;
+  const fuelLitres = Number((totalDistance / mileage).toFixed(2));
+  const fuelCost = Number((fuelLitres * 103).toFixed(2));
 
-  const baseCharge = Math.max(1008, totalDistance * 88.73 + orderedStops.length * 420);
+  const baseCharge = 150 + totalDistance * 12 + orderedStops.length * 80;
   const priorityModifier = options.priority === "urgent" ? 1.18 : options.priority === "eco" ? 0.88 : 1;
   const routeCost = Number((baseCharge * priorityModifier + fuelCost).toFixed(2));
 
