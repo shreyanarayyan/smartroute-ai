@@ -3,8 +3,28 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://courageous-grace-production-6ec9.up.railway.app/api/:path*"
+      "source": "/api/routes(.*)",
+      "destination": "https://courageous-grace-production-6ec9.up.railway.app/api/routes$1"
+    },
+    {
+      "source": "/api/fleet(.*)",
+      "destination": "https://courageous-grace-production-6ec9.up.railway.app/api/fleet$1"
+    },
+    {
+      "source": "/api/nearby(.*)",
+      "destination": "https://courageous-grace-production-6ec9.up.railway.app/api/nearby$1"
+    },
+    {
+      "source": "/api/history(.*)",
+      "destination": "https://courageous-grace-production-6ec9.up.railway.app/api/history$1"
+    },
+    {
+      "source": "/api/analytics(.*)",
+      "destination": "https://courageous-grace-production-6ec9.up.railway.app/api/analytics$1"
+    },
+    {
+      "source": "/api/optimize-route(.*)",
+      "destination": "https://courageous-grace-production-6ec9.up.railway.app/api/optimize-route$1"
     },
     {
       "source": "/(.*)",
