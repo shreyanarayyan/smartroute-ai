@@ -8,74 +8,61 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) *
-      Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ── Build NxN distance matrix ───────────────────────────────────────────────
-function buildDistanceMatrix(points) {
-  const n = points.length;
-  const matrix = Array.from({ length: n }, () => new Array(n).fill(0));
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
-      if (i !== j) {
-        matrix[i][j] = haversineDistance(
-          points[i].lat, points[i].lng,
-          points[j].lat, points[j].lng
-        );
-      }
-    }
-  }
-  return matrix;
-}
+// ── Nearest Neighbour TSP ───────────────────────────────────────────────
+// Works directly on stop objects — no distance matrix needed.
+// Greedy: always pick the unvisited stop closest to the current position.
+function nearestNeighbourTSP(stops, startLat, startLng) {
+  const unvisited = [...stops];
+  const route = [];
+  let currentLat = startLat;
+  let currentLng = startLng;
 
-// ── Nearest Neighbour TSP ───────────────────────────────────────────────────
-function nearestNeighbour(distanceMatrix, startIndex) {
-  const n = distanceMatrix.length;
-  const visited = new Array(n).fill(false);
-  const route = [startIndex];
-  visited[startIndex] = true;
-
-  for (let i = 0; i < n - 1; i++) {
-    const current = route[route.length - 1];
+  while (unvisited.length > 0) {
+    let nearestIndex = 0;
     let nearestDist = Infinity;
-    let nearestIndex = -1;
 
-    for (let j = 0; j < n; j++) {
-      if (!visited[j] && distanceMatrix[current][j] < nearestDist) {
-        nearestDist = distanceMatrix[current][j];
-        nearestIndex = j;
+    for (let i = 0; i < unvisited.length; i++) {
+      const dist = haversineDistance(
+        currentLat, currentLng,
+        unvisited[i].lat, unvisited[i].lng
+      );
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestIndex = i;
       }
     }
-    visited[nearestIndex] = true;
-    route.push(nearestIndex);
+
+    route.push(unvisited[nearestIndex]);
+    currentLat = unvisited[nearestIndex].lat;
+    currentLng = unvisited[nearestIndex].lng;
+    unvisited.splice(nearestIndex, 1);
   }
   return route;
 }
 
 // ── Address/coordinate normaliser ──────────────────────────────────────────
-function hashText(value = "") {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
 
+// Returns { address, lat, lng } when real coords exist, or null when coords are missing.
+// We no longer silently generate hash fallbacks — missing coords must be caught
+// before calling the optimizer so the user gets a clear error.
 function normalizePoint(point) {
-  if (point && typeof point.lat === "number" && typeof point.lng === "number") {
+  if (
+    point &&
+    typeof point.lat === "number" &&
+    typeof point.lng === "number" &&
+    !isNaN(point.lat) &&
+    !isNaN(point.lng)
+  ) {
     return { address: point.address || "Unknown location", lat: point.lat, lng: point.lng };
   }
-  const seed = hashText(point?.address || "Unknown location");
-  const lat = ((seed % 180) - 90) + ((seed >> 4) % 10) * 0.03;
-  const lng = (((seed >> 8) % 360) - 180) + ((seed >> 2) % 10) * 0.03;
-  return { address: point?.address || "Unknown location", lat: Number(lat.toFixed(5)), lng: Number(lng.toFixed(5)) };
+  // Return null to signal that this point has no usable coordinates.
+  return null;
 }
 
 // ── Route stats builder ─────────────────────────────────────────────────────
@@ -123,44 +110,80 @@ function buildRouteStats(start, orderedStops, options) {
 
 // ── POST /api/optimize-route ────────────────────────────────────────────────
 router.post("/optimize-route", async (req, res) => {
+  console.log("\n=== BACKEND RECEIVED ===");
+  console.log("Start lat:", req.body.pickup?.lat);
+  console.log("Start lng:", req.body.pickup?.lng);
+  console.log("Pickup address:", req.body.pickup?.address);
+  console.log("Stops received:", req.body.stops?.map(s => ({
+    address: s.address,
+    lat: s.lat,
+    lng: s.lng
+  })));
+  console.log("========================\n");
+
   const { pickup, stops, priority = "balanced", vehicle = "van", fuelPrice = 103 } = req.body;
 
   if (!pickup || !Array.isArray(stops) || stops.length === 0) {
     return res.status(400).json({ error: "Pickup and stops are required." });
   }
 
+  // ── Fix #5: Validate coordinates BEFORE running the optimizer ────────────
+  // Check pickup
   const startPoint = normalizePoint(pickup);
-  const normalizedStops = stops
-    .filter((stop) => stop && stop.address && stop.address.trim())
-    .map(normalizePoint);
+  if (!startPoint) {
+    return res.status(400).json({
+      error: `Pickup location "${pickup?.address || "(unknown)"}" is missing coordinates. Please select it from the autocomplete dropdown.`,
+    });
+  }
 
-  if (normalizedStops.length === 0) {
+  // Check each stop
+  const validStops = stops.filter((stop) => stop && stop.address && stop.address.trim());
+  if (validStops.length === 0) {
     return res.status(400).json({ error: "At least one valid stop is required." });
   }
 
-  // All points: index 0 = pickup, 1..n = stops
-  const allPoints = [startPoint, ...normalizedStops];
+  const missingCoordStops = validStops.filter(
+    (s) => typeof s.lat !== "number" || typeof s.lng !== "number" || isNaN(s.lat) || isNaN(s.lng)
+  );
+  if (missingCoordStops.length > 0) {
+    const names = missingCoordStops.map((s) => `"${s.address}"`).join(", ");
+    return res.status(400).json({
+      error: `The following stop(s) are missing coordinates — please select them from the autocomplete dropdown: ${names}`,
+    });
+  }
 
-  console.log("\n─── Route Optimization ───────────────────────────────");
-  console.log("Original order:", allPoints.map((p, i) => `[${i}] ${p.address}`));
+  const normalizedStops = validStops.map((stop) => normalizePoint(stop));
 
-  // Build NxN distance matrix
-  const distanceMatrix = buildDistanceMatrix(allPoints);
-  console.log("Distance matrix (km, rounded):");
-  distanceMatrix.forEach((row, i) => {
-    console.log(`  [${i}]`, row.map((d) => d.toFixed(1)).join("  "));
-  });
+  // Save original order for comparison
+  const originalStops = normalizedStops.map((s, i) => ({
+    label: `Stop ${i + 1}`,
+    address: s.address,
+    lat: s.lat,
+    lng: s.lng,
+  }));
 
-  // Run Nearest Neighbour TSP starting from index 0 (pickup)
-  const routeIndices = nearestNeighbour(distanceMatrix, 0);
-  console.log("Optimized index order:", routeIndices);
-  console.log("Optimized stop order:", routeIndices.slice(1).map((i) => allPoints[i].address));
-  console.log("──────────────────────────────────────────────────────\n");
+  console.log("\n══════════════════════════════════════════════════════");
+  console.log("  ROUTE OPTIMIZATION — Nearest Neighbour TSP");
+  console.log("══════════════════════════════════════════════════════");
+  console.log(`\n📍 Pickup: ${startPoint.address}  (lat=${startPoint.lat.toFixed(4)}, lng=${startPoint.lng.toFixed(4)})`);
+  console.log("\n📋 ORIGINAL ORDER (as entered by user):");
+  normalizedStops.forEach((s, i) =>
+    console.log(`   [${i + 1}] ${s.address}  (lat=${s.lat.toFixed(4)}, lng=${s.lng.toFixed(4)})`)
+  );
 
-  // Map indices back to point objects (skip 0 = pickup)
-  const orderedStops = routeIndices.slice(1).map((i) => allPoints[i]);
+  // Run Nearest Neighbour TSP directly on stop objects, starting from pickup coords
+  const optimizedStops = nearestNeighbourTSP(normalizedStops, startPoint.lat, startPoint.lng);
 
-  const stats = buildRouteStats(startPoint, orderedStops, { priority, vehicle, fuelPrice });
+  console.log("\n✅ OPTIMIZED ORDER (Nearest Neighbour TSP):");
+  optimizedStops.forEach((s, i) =>
+    console.log(`   [${i + 1}] ${s.address}  (lat=${s.lat.toFixed(4)}, lng=${s.lng.toFixed(4)})`)
+  );
+
+  const wasReordered = optimizedStops.some((s, i) => s.address.trim().toLowerCase() !== normalizedStops[i]?.address.trim().toLowerCase());
+  console.log(wasReordered ? "\n🔄 Order WAS resequenced by TSP!" : "\n✔️  Order unchanged — stops were already in optimal sequence.");
+  console.log("══════════════════════════════════════════════════════\n");
+
+  const stats = buildRouteStats(startPoint, optimizedStops, { priority, vehicle, fuelPrice });
   const mlPrediction = await predictRouteMetrics(stats.totalDistanceKm, normalizedStops.length, vehicle, priority);
 
   const mergedStats = {
@@ -173,7 +196,14 @@ router.post("/optimize-route", async (req, res) => {
     modelPrediction: mlPrediction,
   };
 
-  return res.json({ pickup: startPoint, ...mergedStats });
+  return res.json({
+    success: true,
+    wasReordered,
+    originalStops,
+    optimizedStops: stats.orderedStops,
+    pickup: startPoint,
+    ...mergedStats,
+  });
 });
 
 export default router;

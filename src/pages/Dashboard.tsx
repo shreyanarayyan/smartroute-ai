@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import RouteMap from "@/components/RouteMap";
+import RouteNavigationGuide from "@/components/RouteNavigationGuide";
 import { OptimizedRoute, RoutePoint, Stop } from "@/lib/routeTypes";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 import NearbySuggestionCard from "@/components/NearbySuggestionCard";
@@ -222,10 +223,14 @@ const Dashboard = () => {
 
   const displayRoute = routeState.routeResult ?? fallbackRoute;
 
-  const updateStop = (index: number, address: string, lat?: number | null, lng?: number | null) =>
+  const updateStop = (index: number, address: string, lat?: number | null, lng?: number | null) => {
+    const resolvedLat = (lat !== undefined && lat !== null && !isNaN(lat)) ? lat : null;
+    const resolvedLng = (lng !== undefined && lng !== null && !isNaN(lng)) ? lng : null;
+    console.log(`[updateStop #${index}] address="${address}" lat=${resolvedLat} lng=${resolvedLng}`);
     updateStops(routeState.stops.map((stop, stopIndex) =>
-      stopIndex === index ? { ...stop, address, lat: lat ?? null, lng: lng ?? null } : stop,
+      stopIndex === index ? { ...stop, address, lat: resolvedLat, lng: resolvedLng } : stop,
     ));
+  };
 
   const addStop = () => updateStops([...routeState.stops, createStop("")]);
 
@@ -301,18 +306,37 @@ const Dashboard = () => {
       return;
     }
 
+    // Snapshot stops at call time to avoid stale closure issues in async callback
+    const stopsSnapshot = [...activeStops];
+
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("  [Frontend] ORIGINAL STOP ORDER (as entered by user):");
+    stopsSnapshot.forEach((s, i) => console.log(`    [${i}] ${s.address}`));
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // ── Coordinate verification log (fix #4) ─────────────────
+    console.log("Stops with coords:", stopsSnapshot.map(s => ({
+      address: s.address,
+      lat: s.lat,
+      lng: s.lng
+    })));
+    const missingCoords = stopsSnapshot.filter(s => s.lat === null || s.lng === null || s.lat === undefined || s.lng === undefined);
+    if (missingCoords.length > 0) {
+      console.warn(`⚠️  [Frontend] ${missingCoords.length} stop(s) are missing coordinates — TSP may use hash fallback:`,
+        missingCoords.map(s => s.address)
+      );
+    }
+
     setLoading(true);
     updateStatusMessage("Optimizing route on the backend…");
 
     try {
       const response = await fetch("/api/optimize-route", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pickup: routeState.pickup,
-          stops: activeStops.map((stop) => ({ address: stop.address, lat: stop.lat, lng: stop.lng })),
+          stops: stopsSnapshot.map((stop) => ({ address: stop.address, lat: stop.lat, lng: stop.lng })),
           priority: routeState.priority,
           vehicle: routeState.vehicle,
           fuelPrice: 103,
@@ -325,14 +349,29 @@ const Dashboard = () => {
       }
 
       const result = await response.json();
-      updateRouteResult(result as OptimizedRoute);
+      console.log("Backend returned:", result.optimizedStops);
+      console.log("Was reordered by TSP:", result.wasReordered);
 
-      // Reorder the stops input list to match the optimized sequence returned by backend
-      if (result.orderedStops && Array.isArray(result.orderedStops)) {
-        const reordered = result.orderedStops.map((optimizedStop: { address: string; lat: number; lng: number }) => {
-          // Find matching stop in current state to preserve id
-          const match = routeState.stops.find(
-            (s) => s.address.toLowerCase() === optimizedStop.address.toLowerCase()
+      // ALWAYS trust the backend's optimized order — reorder stops to match
+      const backendStops = (result.optimizedStops && result.optimizedStops.length > 0)
+        ? result.optimizedStops
+        : result.orderedStops;
+
+      // Merge orderedStops with the correct optimized order so every panel
+      // (Optimization Results, RouteNavigationGuide) shows the same sequence
+      updateRouteResult({ ...result, orderedStops: backendStops } as OptimizedRoute);
+
+      if (backendStops && Array.isArray(backendStops)) {
+        console.log("  [Frontend] APPLYING optimized stop order from backend:");
+        backendStops.forEach((s: { address: string; lat: number; lng: number }, i: number) =>
+          console.log(`    [${i}] ${s.address}  (lat=${s.lat}, lng=${s.lng})`)
+        );
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        // Use stopsSnapshot (not routeState.stops) to avoid stale closure mismatch
+        const reordered = backendStops.map((optimizedStop: { address: string; lat: number; lng: number }) => {
+          const match = stopsSnapshot.find(
+            (s) => s.address.trim().toLowerCase() === optimizedStop.address.trim().toLowerCase()
           );
           return match
             ? { ...match, lat: optimizedStop.lat, lng: optimizedStop.lng }
@@ -435,8 +474,14 @@ const Dashboard = () => {
               <Label>Pickup location</Label>
               <LocationAutocomplete
                 value={routeState.pickup.address}
-                onChange={(address, lat, lng) => updatePickup({ ...routeState.pickup, address, lat, lng })}
+                onChange={(address, lat, lng) => {
+                  const resolvedLat = (lat !== undefined && lat !== null && !isNaN(lat)) ? lat : null;
+                  const resolvedLng = (lng !== undefined && lng !== null && !isNaN(lng)) ? lng : null;
+                  console.log(`[Pickup] address="${address}" lat=${resolvedLat} lng=${resolvedLng}`);
+                  updatePickup({ ...routeState.pickup, address, lat: resolvedLat, lng: resolvedLng });
+                }}
                 placeholder="Enter pickup location"
+                hasValidCoords={!!(routeState.pickup.lat && routeState.pickup.lng)}
               />
               <Button variant="panel" onClick={handleUseCurrentLocation} disabled={detectingLocation}>
                 {detectingLocation
@@ -466,9 +511,13 @@ const Dashboard = () => {
                           warnDuplicate();
                           return;
                         }
-                        updateStop(index, address, lat, lng);
+                        // Ensure lat/lng are real numbers before storing
+                        const resolvedLat = (lat !== undefined && lat !== null && !isNaN(lat)) ? lat : null;
+                        const resolvedLng = (lng !== undefined && lng !== null && !isNaN(lng)) ? lng : null;
+                        updateStop(index, address, resolvedLat, resolvedLng);
                       }}
                       placeholder="Enter delivery address"
+                      hasValidCoords={!!(stop.lat && stop.lng)}
                     />
                   </div>
                   <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0" onClick={() => removeStop(index)}>
@@ -515,6 +564,13 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </section>
+
+      {/* ── Route Navigation Guide (visible after optimization) ─── */}
+      {routeState.routeResult && routeState.routeResult.orderedStops.length > 0 && (
+        <section>
+          <RouteNavigationGuide route={routeState.routeResult} />
+        </section>
+      )}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
