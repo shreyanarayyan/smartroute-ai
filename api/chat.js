@@ -23,11 +23,11 @@ export default async function handler(req, res) {
         messages: [
           {
             role: 'system',
-            content: 'You are SmartRoute AI Assistant, a delivery route optimization expert. Help delivery boys with route planning, fuel saving tips, traffic advice, and delivery optimization. Keep answers short and practical.'
+            content: 'You are SmartRoute AI Assistant, a delivery route optimization expert. Help delivery boys with route planning, fuel saving tips, traffic advice. CRITICAL RULE: Keep answers STRICTLY under 2 sentences. Be extremely concise and fast.'
           },
           { role: 'user', content: message }
         ],
-        max_tokens: 500,
+        max_tokens: 100,
         temperature: 0.7
       })
     });
