@@ -15,31 +15,48 @@ type RouteMapProps = {
   currentLocation?: { lat: number; lng: number };
 };
 
-// ── Custom circular marker icon ────────────────────────────────────────────
 const createCustomIcon = (isPickup: boolean, label: string) => {
-  const color = isPickup ? "#22c55e" : "#ef4444";
-  const size = isPickup ? 40 : 36;
+  const color = isPickup ? "#22c55e" : "#ef4444"; // green vs red
+  const darkColor = isPickup ? "#15803d" : "#b91c1c"; // darker green vs darker red
+  const size = isPickup ? 42 : 36;
+  const innerSize = isPickup ? 24 : 20;
+
   return L.divIcon({
     html: `
       <div style="
+        position: relative;
         width: ${size}px;
         height: ${size}px;
         background-color: ${color};
-        border: 3px solid ${isPickup ? "#16a34a" : "#dc2626"};
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        font-size: 14px;
-        color: #fff;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        box-shadow: -2px 2px 6px rgba(0,0,0,0.3);
       ">
-        ${label}
+        <div style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: ${innerSize}px;
+          height: ${innerSize}px;
+          background-color: ${darkColor};
+          border-radius: 50%;
+          transform: translate(-50%, -50%) rotate(45deg);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: 700;
+          font-size: ${isPickup ? 14 : 12}px;
+        ">
+          ${label}
+        </div>
       </div>
     `,
     iconSize: [size, size],
-    className: "custom-div-icon",
+    // The point of the teardrop extends beyond the square box after rotation
+    iconAnchor: [size / 2, size * 1.2],
+    popupAnchor: [0, -size * 1.2],
+    className: "bg-transparent border-0", // Clears default leaflet background
   });
 };
 
