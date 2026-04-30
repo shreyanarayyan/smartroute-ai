@@ -51,76 +51,37 @@ const RouteNavigationGuide = ({ route }: Props) => {
   };
 
   return (
-    <div
-      style={{
-        background: "#fff",
-        borderRadius: 16,
-        boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-        padding: "28px 32px",
-        marginTop: 0,
-      }}
-    >
+    <div className="bg-card text-card-foreground rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] dark:shadow-none dark:border border-border p-7 sm:p-8">
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28 }}>
-        <div
-          style={{
-            background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
-            borderRadius: 10,
-            padding: 8,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Navigation size={20} color="#fff" />
+      <div className="flex items-center gap-3 mb-7">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-2 flex items-center justify-center">
+          <Navigation className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#111827" }}>
+          <h2 className="m-0 text-lg font-bold text-foreground">
             Route Navigation Guide
           </h2>
-          <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+          <p className="m-0 text-sm text-muted-foreground">
             Step-by-step delivery instructions
           </p>
         </div>
       </div>
 
       {/* Timeline */}
-      <div style={{ position: "relative" }}>
+      <div className="relative">
         {/* Vertical line */}
-        <div
-          style={{
-            position: "absolute",
-            left: 19,
-            top: 40,
-            bottom: 40,
-            width: 2,
-            background: "linear-gradient(to bottom, #22c55e 0%, #3b82f6 50%, #ef4444 100%)",
-            borderRadius: 2,
-          }}
-        />
+        <div className="absolute left-[19px] top-10 bottom-10 w-0.5 bg-gradient-to-b from-green-500 via-blue-500 to-red-500 rounded-full" />
 
         {/* START */}
         <TimelineRow
           dot={
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 2px 8px rgba(34,197,94,0.4)",
-                flexShrink: 0,
-              }}
-            >
-              <CheckCircle2 size={20} color="#fff" />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shadow-[0_2px_8px_rgba(34,197,94,0.4)] shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-white" />
             </div>
           }
-          label={<span style={{ fontWeight: 700, color: "#16a34a", fontSize: 12, letterSpacing: "0.08em" }}>START</span>}
+          label={<span className="font-bold text-green-600 dark:text-green-500 text-xs tracking-wider">START</span>}
           address={shortAddr(route.pickup.address)}
-          meta={<span style={{ color: "#6b7280", fontSize: 12 }}>Pickup location</span>}
+          meta={<span className="text-muted-foreground text-xs">Pickup location</span>}
         />
 
         {/* Segments + stops */}
@@ -132,31 +93,16 @@ const RouteNavigationGuide = ({ route }: Props) => {
             {/* Stop */}
             <TimelineRow
               dot={
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg, #ef4444, #dc2626)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "0 2px 8px rgba(239,68,68,0.35)",
-                    fontWeight: 700,
-                    color: "#fff",
-                    fontSize: 15,
-                    flexShrink: 0,
-                  }}
-                >
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-[0_2px_8px_rgba(239,68,68,0.35)] font-bold text-white text-base shrink-0">
                   {i + 1}
                 </div>
               }
-              label={<span style={{ fontWeight: 700, color: "#dc2626", fontSize: 12, letterSpacing: "0.08em" }}>STOP {i + 1}</span>}
+              label={<span className="font-bold text-red-600 dark:text-red-500 text-xs tracking-wider">STOP {i + 1}</span>}
               address={shortAddr(seg.to.address)}
               meta={
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <Clock size={12} color="#6b7280" />
-                  <span style={{ color: "#6b7280", fontSize: 12 }}>
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-muted-foreground text-xs">
                     ETA +{seg.cumMinutes} min from start
                   </span>
                 </div>
@@ -167,33 +113,24 @@ const RouteNavigationGuide = ({ route }: Props) => {
       </div>
 
       {/* Summary footer */}
-      <div
-        style={{
-          marginTop: 24,
-          borderTop: "1px solid #f3f4f6",
-          paddingTop: 20,
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 12,
-        }}
-      >
+      <div className="mt-6 border-t border-border pt-5 grid grid-cols-3 gap-3">
         <SummaryCell
-          icon={<MapPin size={16} color="#3b82f6" />}
+          icon={<MapPin className="w-4 h-4 text-blue-500" />}
           label="Total Distance"
           value={`${totalDistKm.toFixed(1)} km`}
-          color="#3b82f6"
+          colorClass="text-blue-500"
         />
         <SummaryCell
-          icon={<Clock size={16} color="#8b5cf6" />}
+          icon={<Clock className="w-4 h-4 text-purple-500" />}
           label="Total Time"
           value={`~${totalMinutes} min`}
-          color="#8b5cf6"
+          colorClass="text-purple-500"
         />
         <SummaryCell
-          icon={<Fuel size={16} color="#f59e0b" />}
+          icon={<Fuel className="w-4 h-4 text-amber-500" />}
           label="Fuel Cost"
           value={`₹${route.fuelCost.toFixed(0)}`}
-          color="#f59e0b"
+          colorClass="text-amber-500"
         />
       </div>
     </div>
@@ -213,76 +150,27 @@ const TimelineRow = ({
   address: string;
   meta: React.ReactNode;
 }) => (
-  <div style={{ display: "flex", gap: 16, alignItems: "flex-start", position: "relative", zIndex: 1 }}>
+  <div className="flex gap-4 items-start relative z-10">
     {dot}
-    <div
-      style={{
-        background: "#f9fafb",
-        border: "1px solid #e5e7eb",
-        borderRadius: 10,
-        padding: "10px 14px",
-        flex: 1,
-        minWidth: 0,
-      }}
-    >
+    <div className="bg-muted/30 border border-border rounded-xl p-3 flex-1 min-w-0 transition-colors">
       {label}
       <p
-        style={{
-          margin: "2px 0 0",
-          fontSize: 14,
-          fontWeight: 600,
-          color: "#111827",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
+        className="mt-0.5 mb-0 text-sm font-semibold text-foreground whitespace-nowrap overflow-hidden text-ellipsis"
         title={address}
       >
         {address}
       </p>
-      <div style={{ marginTop: 4 }}>{meta}</div>
+      <div className="mt-1">{meta}</div>
     </div>
   </div>
 );
 
 const DistanceRow = ({ distKm }: { distKm: number }) => (
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      padding: "6px 0",
-      paddingLeft: 10,
-      position: "relative",
-      zIndex: 1,
-    }}
-  >
-    <div
-      style={{
-        width: 20,
-        height: 20,
-        borderRadius: "50%",
-        background: "#eff6ff",
-        border: "1.5px solid #93c5fd",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-      }}
-    >
-      <ArrowDown size={11} color="#3b82f6" />
+  <div className="flex items-center gap-2.5 py-1.5 pl-2.5 relative z-10">
+    <div className="w-5 h-5 rounded-full bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-200 dark:border-blue-800 flex items-center justify-center shrink-0">
+      <ArrowDown className="w-3 h-3 text-blue-500 dark:text-blue-400" />
     </div>
-    <span
-      style={{
-        fontSize: 12,
-        color: "#3b82f6",
-        fontWeight: 600,
-        background: "#eff6ff",
-        borderRadius: 20,
-        padding: "2px 10px",
-        border: "1px solid #bfdbfe",
-      }}
-    >
+    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-full px-2.5 py-0.5 border border-blue-200 dark:border-blue-800">
       {distKm.toFixed(2)} km
     </span>
   </div>
@@ -292,25 +180,17 @@ const SummaryCell = ({
   icon,
   label,
   value,
-  color,
+  colorClass,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  color: string;
+  colorClass: string;
 }) => (
-  <div
-    style={{
-      background: "#f9fafb",
-      borderRadius: 10,
-      padding: "12px 14px",
-      border: "1px solid #e5e7eb",
-      textAlign: "center",
-    }}
-  >
-    <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>{icon}</div>
-    <p style={{ margin: 0, fontSize: 11, color: "#9ca3af", fontWeight: 500 }}>{label}</p>
-    <p style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 700, color }}>{value}</p>
+  <div className="bg-muted/30 rounded-xl p-3 border border-border text-center flex flex-col items-center transition-colors">
+    <div className="flex justify-center mb-1.5">{icon}</div>
+    <p className="m-0 text-[11px] text-muted-foreground font-medium">{label}</p>
+    <p className={`mt-1 mb-0 text-lg font-bold ${colorClass}`}>{value}</p>
   </div>
 );
 
