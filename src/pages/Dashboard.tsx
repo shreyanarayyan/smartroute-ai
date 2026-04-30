@@ -26,6 +26,7 @@ import RouteNavigationGuide from "@/components/RouteNavigationGuide";
 import { OptimizedRoute, RoutePoint, Stop } from "@/lib/routeTypes";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 import NearbySuggestionCard from "@/components/NearbySuggestionCard";
+import LiveNavigation from "@/components/LiveNavigation";
 import { useRoute } from "@/contexts/RouteContext";
 
 const createStop = (address: string, lat: number | null = null, lng: number | null = null): Stop => ({
@@ -401,6 +402,10 @@ const Dashboard = () => {
     link.remove();
     URL.revokeObjectURL(url);
   };
+
+  if (routeState.isNavigating) {
+    return <LiveNavigation />;
+  }
 
   return (
     <div className="space-y-6">

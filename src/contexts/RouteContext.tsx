@@ -9,6 +9,8 @@ export interface RouteState {
   nearbyStops: Stop[];
   routeResult: OptimizedRoute | null;
   statusMessage: string;
+  isNavigating: boolean;
+  currentStopIndex: number;
 }
 
 interface RouteContextType {
@@ -20,6 +22,8 @@ interface RouteContextType {
   updateNearbyStops: (nearbyStops: Stop[]) => void;
   updateRouteResult: (routeResult: OptimizedRoute | null) => void;
   updateStatusMessage: (message: string) => void;
+  setIsNavigating: (isNavigating: boolean) => void;
+  setCurrentStopIndex: (index: number) => void;
   resetRoute: () => void;
 }
 
@@ -46,6 +50,8 @@ const initialState: RouteState = {
   nearbyStops: [],
   routeResult: null,
   statusMessage: "Enter your pickup and stops, then optimize.",
+  isNavigating: false,
+  currentStopIndex: 0,
 };
 
 const STORAGE_KEY = "smartroute-route-state";
@@ -93,6 +99,14 @@ export const RouteProvider = ({ children }: { children: ReactNode }) => {
     setRouteState(prev => ({ ...prev, statusMessage: message }));
   };
 
+  const setIsNavigating = (isNavigating: boolean) => {
+    setRouteState(prev => ({ ...prev, isNavigating }));
+  };
+
+  const setCurrentStopIndex = (currentStopIndex: number) => {
+    setRouteState(prev => ({ ...prev, currentStopIndex }));
+  };
+
   const resetRoute = () => {
     setRouteState(initialState);
     localStorage.removeItem(STORAGE_KEY);
@@ -107,6 +121,8 @@ export const RouteProvider = ({ children }: { children: ReactNode }) => {
     updateNearbyStops,
     updateRouteResult,
     updateStatusMessage,
+    setIsNavigating,
+    setCurrentStopIndex,
     resetRoute,
   };
 

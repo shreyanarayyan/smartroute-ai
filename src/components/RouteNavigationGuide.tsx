@@ -1,5 +1,7 @@
-import { MapPin, Navigation, Clock, Fuel, ArrowDown, CheckCircle2 } from "lucide-react";
+import { MapPin, Navigation, Clock, Fuel, ArrowDown, CheckCircle2, Play } from "lucide-react";
 import { RoutePoint, OptimizedRoute } from "@/lib/routeTypes";
+import { Button } from "./ui/button";
+import { useRoute } from "@/contexts/RouteContext";
 
 // ── Haversine distance formula ─────────────────────────────────────────────
 function haversineKm(a: RoutePoint, b: RoutePoint): number {
@@ -25,6 +27,8 @@ type Props = {
 };
 
 const RouteNavigationGuide = ({ route }: Props) => {
+  const { setIsNavigating, setCurrentStopIndex } = useRoute();
+
   const stopsToRender =
     route.optimizedStops && route.optimizedStops.length > 0
       ? route.optimizedStops
@@ -53,18 +57,31 @@ const RouteNavigationGuide = ({ route }: Props) => {
   return (
     <div className="bg-card text-card-foreground rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] dark:shadow-none dark:border border-border p-7 sm:p-8">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-7">
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-2 flex items-center justify-center">
-          <Navigation className="w-5 h-5 text-white" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
+        <div className="flex items-center gap-3">
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-2 flex items-center justify-center">
+            <Navigation className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="m-0 text-lg font-bold text-foreground">
+              Route Navigation Guide
+            </h2>
+            <p className="m-0 text-sm text-muted-foreground">
+              Step-by-step delivery instructions
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="m-0 text-lg font-bold text-foreground">
-            Route Navigation Guide
-          </h2>
-          <p className="m-0 text-sm text-muted-foreground">
-            Step-by-step delivery instructions
-          </p>
-        </div>
+        <Button 
+          size="lg" 
+          className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+          onClick={() => {
+            setCurrentStopIndex(0);
+            setIsNavigating(true);
+          }}
+        >
+          <Play className="w-5 h-5 mr-2 fill-current" />
+          Start Navigation
+        </Button>
       </div>
 
       {/* Timeline */}
