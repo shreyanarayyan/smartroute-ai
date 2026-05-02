@@ -25,7 +25,7 @@ function createSample(distance, stopCount, vehicle, priority) {
   const mileage = vehicle === "truck" ? 8 : vehicle === "bike" ? 45 : 15;
   const fuel = distance / mileage;
   const priorityModifier = priority === "urgent" ? 1.18 : priority === "eco" ? 0.88 : 1;
-  const routeCost = (150 + distance * 12 + stopCount * 80) * priorityModifier + fuel * 103;
+  const routeCost = (50 + distance * 5 + stopCount * 20) * priorityModifier + fuel * 103;
   const score = Math.min(100, Math.max(50, 80 + stopCount * 2 + (priority === "eco" ? 8 : priority === "urgent" ? 2 : 4) - distance * 0.03));
 
   return {

@@ -92,7 +92,7 @@ const LocationAutocomplete = ({
       } finally {
         setIsLoading(false);
       }
-    }, 300);
+    }, 400);
   };
 
   const handleSelect = (suggestion: NominatimResult) => {

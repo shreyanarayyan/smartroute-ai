@@ -9,8 +9,6 @@ export interface RouteState {
   nearbyStops: Stop[];
   routeResult: OptimizedRoute | null;
   statusMessage: string;
-  isNavigating: boolean;
-  currentStopIndex: number;
 }
 
 interface RouteContextType {
@@ -22,8 +20,6 @@ interface RouteContextType {
   updateNearbyStops: (nearbyStops: Stop[]) => void;
   updateRouteResult: (routeResult: OptimizedRoute | null) => void;
   updateStatusMessage: (message: string) => void;
-  setIsNavigating: (isNavigating: boolean) => void;
-  setCurrentStopIndex: (index: number) => void;
   resetRoute: () => void;
 }
 
@@ -31,15 +27,16 @@ const RouteContext = createContext<RouteContextType | undefined>(undefined);
 
 const initialPickup: Stop = {
   id: "pickup-default",
-  address: "125 Distribution Drive, Newark",
-  lat: 40.7357,
-  lng: -74.1724,
+  address: "Phagwara Tahsil, Kapurthala, Punjab",
+  lat: 31.2240,
+  lng: 75.7708,
 };
 
 const initialStops: Stop[] = [
-  { id: "stop-1", address: "88 Harbor Way, Brooklyn", lat: 40.6895, lng: -73.9969 },
-  { id: "stop-2", address: "12 Market Street, Queens", lat: 40.7282, lng: -73.7949 },
-  { id: "stop-3", address: "440 Hudson Ave, Manhattan", lat: 40.6895, lng: -73.9969 },
+  { id: "stop-1", address: "Athouli, Phagwara Tahsil, Kapurthala, Punjab, 144402, India", lat: 31.2060, lng: 75.7470 },
+  { id: "stop-2", address: "Mehtan, Phagwara Tahsil, Kapurthala, Punjab, 144402, India", lat: 31.2330, lng: 75.7830 },
+  { id: "stop-3", address: "Jalandhar, Punjab, India", lat: 31.3260, lng: 75.5762 },
+  { id: "stop-4", address: "Kapurthala, Punjab, India", lat: 31.3803, lng: 75.3826 },
 ];
 
 const initialState: RouteState = {
@@ -50,8 +47,6 @@ const initialState: RouteState = {
   nearbyStops: [],
   routeResult: null,
   statusMessage: "Enter your pickup and stops, then optimize.",
-  isNavigating: false,
-  currentStopIndex: 0,
 };
 
 const STORAGE_KEY = "smartroute-route-state";
@@ -99,14 +94,6 @@ export const RouteProvider = ({ children }: { children: ReactNode }) => {
     setRouteState(prev => ({ ...prev, statusMessage: message }));
   };
 
-  const setIsNavigating = (isNavigating: boolean) => {
-    setRouteState(prev => ({ ...prev, isNavigating }));
-  };
-
-  const setCurrentStopIndex = (currentStopIndex: number) => {
-    setRouteState(prev => ({ ...prev, currentStopIndex }));
-  };
-
   const resetRoute = () => {
     setRouteState(initialState);
     localStorage.removeItem(STORAGE_KEY);
@@ -121,8 +108,6 @@ export const RouteProvider = ({ children }: { children: ReactNode }) => {
     updateNearbyStops,
     updateRouteResult,
     updateStatusMessage,
-    setIsNavigating,
-    setCurrentStopIndex,
     resetRoute,
   };
 

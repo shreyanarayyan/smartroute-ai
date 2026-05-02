@@ -17,6 +17,7 @@ export type OptimizedRoute = {
   name?: string;
   pickup: RoutePoint;
   orderedStops: RoutePoint[];
+  optimizedStops?: RoutePoint[];
   mapPoints: RoutePoint[];
   totalDistanceKm: number;
   travelTimeMinutes: number;

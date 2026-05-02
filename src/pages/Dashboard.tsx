@@ -26,7 +26,6 @@ import RouteNavigationGuide from "@/components/RouteNavigationGuide";
 import { OptimizedRoute, RoutePoint, Stop } from "@/lib/routeTypes";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 import NearbySuggestionCard from "@/components/NearbySuggestionCard";
-import LiveNavigation from "@/components/LiveNavigation";
 import { useRoute } from "@/contexts/RouteContext";
 
 const createStop = (address: string, lat: number | null = null, lng: number | null = null): Stop => ({
@@ -38,10 +37,10 @@ const createStop = (address: string, lat: number | null = null, lng: number | nu
 
 const generateNearbyStops = (coords: { lat: number; lng: number }) => {
   const offsets = [
-    { lat: 0.018, lng: 0.026 },
-    { lat: -0.015, lng: 0.022 },
-    { lat: 0.021, lng: -0.023 },
-    { lat: -0.019, lng: -0.027 },
+    { lat: 0.015 + (Math.random() * 0.01), lng: 0.022 + (Math.random() * 0.01) },
+    { lat: -0.015 - (Math.random() * 0.01), lng: 0.022 + (Math.random() * 0.01) },
+    { lat: 0.018 + (Math.random() * 0.01), lng: -0.023 - (Math.random() * 0.01) },
+    { lat: -0.019 - (Math.random() * 0.01), lng: -0.027 - (Math.random() * 0.01) },
   ];
 
   return offsets.map((offset) =>
@@ -139,7 +138,7 @@ const Dashboard = () => {
       } finally {
         setSearchLoading(false);
       }
-    }, 500);
+    }, 400);
   };
 
   const handleSelectSuggestion = (suggestion: { display_name: string; lat: string; lon: string }) => {
@@ -159,7 +158,14 @@ const Dashboard = () => {
 
   useEffect(() => {
     updateRouteResult(null);
-  }, [routeState.pickup.address, routeState.pickup.lat, routeState.pickup.lng, routeState.priority, routeState.vehicle, JSON.stringify(routeState.stops.map((stop) => stop.address))]);
+  }, [
+    routeState.pickup.address,
+    routeState.pickup.lat,
+    routeState.pickup.lng,
+    routeState.priority,
+    routeState.vehicle,
+    JSON.stringify([...routeState.stops].map((stop) => stop.address).sort())
+  ]);
 
   const activeStops = routeState.stops.filter((stop) => stop.address.trim());
 
@@ -296,9 +302,33 @@ const Dashboard = () => {
     );
   };
 
-  const addNearbyStop = (stop: Stop) => {
+  const addNearbyStop = async (stop: Stop) => {
     updateStops([...routeState.stops, stop]);
     updateStatusMessage("Nearby stop added to the route.");
+
+    // Remove the added stop from the list
+    const remainingStops = routeState.nearbyStops.filter((s) => s.id !== stop.id);
+    updateNearbyStops(remainingStops); // update immediately so UI feels fast
+    
+    // Dynamically generate and fetch ONE new nearby stop to replace it!
+    const latSign = Math.random() > 0.5 ? 1 : -1;
+    const lngSign = Math.random() > 0.5 ? 1 : -1;
+    const latOffset = latSign * (0.01 + Math.random() * 0.03);
+    const lngOffset = lngSign * (0.01 + Math.random() * 0.03);
+    
+    const baseLat = routeState.pickup.lat ?? 31.256;
+    const baseLng = routeState.pickup.lng ?? 75.705;
+    const newLat = Number((baseLat + latOffset).toFixed(6));
+    const newLng = Number((baseLng + lngOffset).toFixed(6));
+    
+    try {
+       const newAddress = await reverseGeocode(newLat, newLng);
+       const newStop = createStop(newAddress, newLat, newLng);
+       // Append the new dynamically generated stop!
+       updateNearbyStops([...remainingStops, newStop]);
+    } catch {
+       // if it fails, just leave the remaining 3
+    }
   };
 
   const optimizeRoute = async () => {
@@ -390,22 +420,45 @@ const Dashboard = () => {
   };
 
   const handleExport = () => {
-    const routeName = `Route_${activeStops.length}_stops`;
-    const content = JSON.stringify(displayRoute, null, 2);
-    const blob = new Blob([content], { type: "application/json" });
+    const routeName = `SmartRoute_Itinerary_${activeStops.length}_stops`;
+    
+    const date = new Date().toLocaleString();
+    let content = `=================================================\n`;
+    content += `        SMARTROUTE AI - DELIVERY ITINERARY       \n`;
+    content += `=================================================\n\n`;
+    content += `Date Generated: ${date}\n`;
+    content += `Priority Mode: ${routeState.priority.toUpperCase()}\n`;
+    content += `Vehicle Type: ${routeState.vehicle.toUpperCase()}\n\n`;
+    
+    content += `--- TRIP SUMMARY ---\n`;
+    content += `Total Stops: ${activeStops.length}\n`;
+    content += `Estimated Distance: ${displayRoute.totalDistanceKm} km\n`;
+    content += `Estimated Time: ${displayRoute.travelTimeMinutes} mins\n`;
+    content += `Estimated Fuel: ${displayRoute.fuelGallons} L\n`;
+    content += `Estimated Cost: ₹${displayRoute.routeCost.toFixed(2)}\n\n`;
+    
+    content += `--- OPTIMIZED ROUTE SEQUENCE ---\n`;
+    displayRoute.mapPoints.forEach((point, index) => {
+      if (index === 0) {
+        content += `[START] Pickup: ${point.address}\n`;
+      } else {
+        content += `[STOP ${index}] Delivery: ${point.address}\n`;
+      }
+    });
+    
+    content += `\n=================================================\n`;
+    content += `Drive safely with SmartRoute AI!\n`;
+
+    const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${routeName}.json`;
+    link.download = `${routeName}.txt`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
   };
-
-  if (routeState.isNavigating) {
-    return <LiveNavigation />;
-  }
 
   return (
     <div className="space-y-6">
@@ -577,29 +630,7 @@ const Dashboard = () => {
         </section>
       )}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Total Deliveries", activeStops.length.toString(), PackageCheck, "Active stops"],
-          ["Estimated Distance", activeStops.length === 0 ? "0 km" : `${displayRoute.totalDistanceKm} km`, Navigation, "AI calculated"],
-          ["Estimated Time", activeStops.length === 0 ? "0 min" : `${displayRoute.travelTimeMinutes} min`, Clock3, "Current ETA"],
-          ["Route Cost", activeStops.length === 0 ? "₹0.00" : `₹${displayRoute.routeCost.toFixed(2)}`, Fuel, "Projected expense"],
-        ].map(([label, value, Icon, meta]) => (
-          <Card key={label as string} className="animate-slide-up rounded-xl border-border bg-card shadow-soft">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{label as string}</p>
-                  <p className="mt-2 font-display text-3xl font-bold">{value as string}</p>
-                </div>
-                <div className="grid h-12 w-12 place-items-center rounded-lg bg-secondary text-primary">
-                  <Icon className="h-6 w-6" />
-                </div>
-              </div>
-              <p className="mt-4 text-xs font-semibold text-success">{meta as string}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
+
 
       {routeState.nearbyStops.length > 0 && (
         <section className="grid gap-6">

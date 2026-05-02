@@ -80,7 +80,7 @@ function buildRouteStats(start, orderedStops, options) {
   const mileage = options.vehicle === "truck" ? 8 : options.vehicle === "bike" ? 45 : 15;
   const fuelLitres = Number((totalDistance / mileage).toFixed(2));
   const fuelCost = Number((fuelLitres * 103).toFixed(2));
-  const baseCharge = 150 + totalDistance * 12 + orderedStops.length * 80;
+  const baseCharge = 50 + totalDistance * 5 + orderedStops.length * 20;
   const priorityModifier = options.priority === "urgent" ? 1.18 : options.priority === "eco" ? 0.88 : 1;
   const routeCost = Number((baseCharge * priorityModifier + fuelCost).toFixed(2));
 

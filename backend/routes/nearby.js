@@ -13,23 +13,57 @@ const haversineKm = (a, b) => {
   return 6371 * 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
 };
 
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
 
   if (!lat || !lng) return res.status(400).json({ error: "Latitude and longitude are required." });
 
-  const suggestions = [
-    { id: "nearby-1", address: "Ferry Street Pickup", lat: lat + 0.015, lng: lng + 0.018 },
-    { id: "nearby-2", address: "Maple Logistics Center", lat: lat - 0.014, lng: lng + 0.02 },
-    { id: "nearby-3", address: "Union Avenue Warehouse", lat: lat + 0.02, lng: lng - 0.016 },
-    { id: "nearby-4", address: "Broadway Dispatch Hub", lat: lat - 0.022, lng: lng - 0.013 },
-  ].map((stop) => ({
-    ...stop,
-    distanceKm: Number(haversineKm({ lat, lng }, stop).toFixed(1)),
-  }));
+  try {
+    // Overpass QL to find nearby shops, cafes, offices within 3km
+    const query = `
+      [out:json][timeout:10];
+      (
+        node["shop"](around:3000,${lat},${lng});
+        node["amenity"~"cafe|restaurant|fast_food|bank|clinic"](around:3000,${lat},${lng});
+        node["office"](around:3000,${lat},${lng});
+      );
+      out body 5;
+    `;
+    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to fetch from Overpass");
+    
+    const data = await response.json();
+    
+    if (!data.elements || data.elements.length === 0) {
+      return res.json([]);
+    }
 
-  res.json(suggestions);
+    // Map Overpass elements to our suggestion format
+    const suggestions = data.elements.map((el) => {
+      const name = el.tags?.name || el.tags?.shop || el.tags?.amenity || "Busy Location";
+      const amenity = el.tags?.amenity ? ` (${el.tags.amenity})` : "";
+      return {
+        id: `osm-${el.id}`,
+        address: `${name}${amenity}`,
+        lat: el.lat,
+        lng: el.lon,
+        distanceKm: Number(haversineKm({ lat, lng }, { lat: el.lat, lng: el.lon }).toFixed(1)),
+      };
+    })
+    // Sort by nearest
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    // Return top 4
+    .slice(0, 4);
+
+    res.json(suggestions);
+  } catch (err) {
+    console.error("Overpass API error:", err.message);
+    // Fallback if Overpass fails
+    res.json([]);
+  }
 });
 
 router.post("/import", (req, res) => {

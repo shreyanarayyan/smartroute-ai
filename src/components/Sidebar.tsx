@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
 import { LayoutDashboard, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -13,8 +13,11 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
   return (
     <div className="flex flex-col h-full">
       <div className="mb-8">
-        <p className="text-2xl font-bold">SmartRoute AI</p>
-        <p className="mt-1 text-sm text-muted-foreground">Delivery route optimization</p>
+        <Link to="/dashboard" onClick={onClose} className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer mb-2">
+          <img src="/logo.svg" alt="SmartRoute AI Logo" className="w-9 h-9 rounded-xl shadow-sm" />
+          <p className="text-2xl font-bold text-foreground">SmartRoute AI</p>
+        </Link>
+        <p className="text-sm text-muted-foreground">Delivery route optimization</p>
       </div>
       <nav className="space-y-2 flex-1">
         {navItems.map((item) => (
